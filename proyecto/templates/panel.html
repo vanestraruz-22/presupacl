@@ -5,6 +5,7 @@
 {% if not config_completa %}
 <p class="error">Falta capturar los datos de ACL. <a href="{{ url_for('configuracion') }}">Ir a Configuración</a>.</p>
 {% endif %}
+{% if sincronizacion.aviso %}<p class="alerta" role="alert">{{ sincronizacion.aviso }}</p>{% endif %}
 <div class="tarjeta">
   <h2>Clientes</h2>
   <form method="get" action="{{ url_for('clientes') }}">
@@ -19,5 +20,15 @@
   <p>Para cotizar: busque al cliente, ábralo y presione <b>Nueva cotización</b>. Después agregue conceptos del
   <a href="{{ url_for('catalogo') }}">catálogo SYSCOM</a> o de los <a href="{{ url_for('conceptos') }}">conceptos manuales</a>.</p>
   <a class="boton" href="{{ url_for('cotizaciones') }}">Ver cotizaciones</a>
+</div>
+<div class="tarjeta">
+  <h2>Precios de SYSCOM</h2>
+  <p>Última actualización exitosa:
+    <b>{{ sincronizacion.ultima_exitosa[:16]|replace('T', ' ') if sincronizacion.ultima_exitosa else 'nunca' }}</b>.
+    Se actualizan solos una vez al día mientras PresupACL está abierto.</p>
+  <form method="post" action="{{ url_for('sincronizar') }}">
+    <input type="hidden" name="_token" value="{{ token }}">
+    <button class="secundario" type="submit">Actualizar precios ahora</button>
+  </form>
 </div>
 {% endblock %}

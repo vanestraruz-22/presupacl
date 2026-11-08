@@ -1,9 +1,21 @@
 {% extends "base.html" %}
 {% block titulo %}Cotizaciones{% endblock %}
 {% block contenido %}
-<h1>Cotizaciones</h1>
-{% block filtros %}{% endblock %}
-{% if mensaje %}<p class="nota">{{ mensaje }}</p>{% endif %}
+<h1>{{ titulo or 'Cotizaciones' }}</h1>
+{% if filtros is not none %}
+<form method="get" class="tarjeta acciones" style="align-items:flex-end">
+  <div><label for="estatus">Estatus</label>
+    <select id="estatus" name="estatus">
+      <option value="">Todos</option>
+      {% for e in ['pendiente', 'aceptada', 'rechazada'] %}<option value="{{ e }}" {% if filtros.estatus == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+    </select></div>
+  <div><label for="desde">Desde</label><input type="date" id="desde" name="desde" value="{{ filtros.desde }}"></div>
+  <div><label for="hasta">Hasta</label><input type="date" id="hasta" name="hasta" value="{{ filtros.hasta }}"></div>
+  <button class="secundario" type="submit">Filtrar</button>
+  <a href="{{ url_for('cotizaciones') }}">Quitar filtros</a>
+</form>
+{% endif %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 <div class="tabla-scroll">
 <table>
   <thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Estatus</th><th class="num">Total</th></tr></thead>
@@ -14,7 +26,7 @@
       <td><span class="estatus {{ c.estatus }}">{{ c.estatus }}</span></td>
       <td class="num">{{ c.total_centavos|moneda(c.moneda) }}</td></tr>
   {% else %}
-    <tr><td colspan="5">No hay cotizaciones registradas.</td></tr>
+    <tr><td colspan="5">{{ mensaje or 'No hay cotizaciones registradas.' }}</td></tr>
   {% endfor %}
   </tbody>
 </table>

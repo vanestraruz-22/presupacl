@@ -44,5 +44,17 @@
   </tfoot>
 </table>
 </div>
+{% if orden %}
+<div class="tarjeta" style="margin-top:16px">
+  <h2>Orden de servicio</h2>
+  <p class="nota">Generada el {{ orden.creada_en[:16]|replace('T', ' ') }}. Sin precios ni cobros.</p>
+  <p><b>Cliente:</b> {{ orden.cliente_nombre_snapshot }} · {{ orden.cliente_telefono_snapshot }}<br><b>Dirección:</b> {{ orden.direccion_snapshot }}</p>
+  <ul>{% for t in orden.tareas %}<li>{{ t.cantidad_milesimas|cantidad }} {{ t.unidad }}: {{ t.descripcion }}</li>{% endfor %}</ul>
+  <form method="get" action="{{ url_for('orden_whatsapp', id_cotizacion=c.id_cotizacion) }}" class="acciones" target="_blank">
+    <input type="text" name="telefono" placeholder="Teléfono del técnico (10 dígitos)" style="max-width:260px" aria-label="Teléfono del técnico">
+    <button class="secundario" type="submit">Enviar orden al técnico por WhatsApp</button>
+  </form>
+</div>
+{% endif %}
 <div class="tarjeta" style="margin-top:16px"><b>Condiciones comerciales</b><p style="white-space:pre-line">{{ c.condiciones }}</p></div>
 {% endblock %}
