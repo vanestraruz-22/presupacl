@@ -34,7 +34,8 @@ def test_CA27_1_duplicar_con_precios_vigentes_sin_tocar_original(bd_config, coti
 
 def test_CA57_un_concepto_para_otro_cliente_y_direccion(bd_config, cliente, conceptos):
     from proyecto.cotizaciones import cotizaciones_creacion as cc
-    id_cot, _ = cc.crear_cotizacion(bd_config, cliente["id_cliente"], [{"id_concepto": conceptos["mano_obra"], "cantidad": "1"}])
+    id_cot, _ = cc.crear_cotizacion(bd_config, cliente["id_cliente"], [{"id_concepto": conceptos["mano_obra"], "cantidad": "1"}],
+                                    cliente["direcciones"][0]["id_direccion"])  # aceptar exige dirección (RF-16)
     est.cambiar_estatus(bd_config, id_cot, "aceptada")
     otro = clientes_registro.registrar_cliente(bd_config, "Otro cliente", "4771112222", ["Calle Otra 5"])
     dir_otro = ad.obtener_cliente(bd_config, otro)["direcciones"][0]["id_direccion"]
