@@ -547,3 +547,60 @@ def listar_cotizaciones(conexion, id_cliente=None, estatus=None, desde=None, has
     except sqlite3.Error as error:
         raise ErrorAlmacenamiento("No se pudo consultar el historial de cotizaciones.") from error
     return [dict(f) for f in filas]
+
+
+
+class ErrorEstadoCotizacion(ErrorAlmacenamiento):
+    """La cotización ya no está en el estatus esperado (por ejemplo, ya se cerró)."""
+
+
+def actualizar_estatus(conexion, id_cotizacion, nuevo, esperado):
+    """Cambia el estatus solo si sigue siendo `esperado` (evita carreras entre pestañas)."""
+    try:
+        with conexion:
+            cursor = conexion.execute(
+                "UPDATE cotizaciones SET estatus = ?, actualizada_en = ? WHERE id_cotizacion = ? AND estatus = ?",
+                (nuevo, _ahora_iso(), id_cotizacion, esperado),
+            )
+            if cursor.rowcount == 0:
+                raise ErrorEstadoCotizacion("La cotización ya no está pendiente; no se cambió el estatus.")
+    except ErrorAlmacenamiento:
+        raise
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo guardar el estatus.") from error
+
+
+def reemplazar_partidas(conexion, id_cotizacion, partidas, totales, id_direccion, direccion_snapshot):
+    """Sustituye partidas y totales de una cotización PENDIENTE en una transacción (RF-14).
+
+    Si la cotización ya no está pendiente lanza ErrorEstadoCotizacion y no cambia nada.
+    El PDF anterior deja de ser válido: pdf_ruta se limpia hasta regenerarlo.
+    """
+    if not partidas:
+        raise ErrorAlmacenamiento("Una cotización necesita al menos una partida; no se guardó.")
+    try:
+        with conexion:
+            cursor = conexion.execute(
+                """UPDATE cotizaciones SET subtotal_centavos = ?, utilidad_centavos = ?, iva_centavos = ?,
+                          total_centavos = ?, id_direccion = ?, direccion_snapshot = ?, actualizada_en = ?,
+                          pdf_ruta = NULL
+                   WHERE id_cotizacion = ? AND estatus = 'pendiente'""",
+                (totales["subtotal_centavos"], totales["utilidad_centavos"], totales["iva_centavos"],
+                 totales["total_centavos"], id_direccion, direccion_snapshot, _ahora_iso(), id_cotizacion),
+            )
+            if cursor.rowcount == 0:
+                raise ErrorEstadoCotizacion("Solo se pueden modificar cotizaciones pendientes; no se guardaron cambios.")
+            conexion.execute("DELETE FROM detalle_cotizacion WHERE id_cotizacion = ?", (id_cotizacion,))
+            _insertar_partidas(conexion, id_cotizacion, partidas)
+    except ErrorAlmacenamiento:
+        raise
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudieron guardar los cambios; la cotización quedó como estaba.") from error
+
+
+def guardar_pdf_ruta(conexion, id_cotizacion, ruta):
+    try:
+        with conexion:
+            conexion.execute("UPDATE cotizaciones SET pdf_ruta = ? WHERE id_cotizacion = ?", (ruta, id_cotizacion))
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo registrar la ruta del PDF.") from error
