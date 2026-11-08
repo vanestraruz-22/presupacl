@@ -517,3 +517,33 @@ def obtener_cotizacion(conexion, id_cotizacion):
         )
     ]
     return cotizacion
+
+
+def listar_cotizaciones(conexion, id_cliente=None, estatus=None, desde=None, hasta=None, limite=200):
+    """Cotizaciones más recientes primero, con filtros opcionales (RF-18, RF-19).
+
+    desde/hasta: fechas AAAA-MM-DD inclusivas sobre la fecha local de creada_en.
+    """
+    condiciones, parametros = [], []
+    if id_cliente is not None:
+        condiciones.append("id_cliente = ?")
+        parametros.append(id_cliente)
+    if estatus:
+        condiciones.append("estatus = ?")
+        parametros.append(estatus)
+    if desde:
+        condiciones.append("substr(creada_en, 1, 10) >= ?")
+        parametros.append(desde)
+    if hasta:
+        condiciones.append("substr(creada_en, 1, 10) <= ?")
+        parametros.append(hasta)
+    donde = ("WHERE " + " AND ".join(condiciones)) if condiciones else ""
+    try:
+        filas = conexion.execute(
+            "SELECT id_cotizacion, folio, id_cliente, cliente_nombre_snapshot, creada_en, estatus, total_centavos, "
+            f"moneda, id_origen FROM cotizaciones {donde} ORDER BY creada_en DESC, id_cotizacion DESC LIMIT ?",
+            (*parametros, limite),
+        ).fetchall()
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo consultar el historial de cotizaciones.") from error
+    return [dict(f) for f in filas]

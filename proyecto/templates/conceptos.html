@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}Conceptos manuales{% endblock %}
+{% block contenido %}
+<h1>Conceptos manuales</h1>
+<p class="nota">Productos y servicios que no vienen de SYSCOM: mano de obra, viáticos, insumos, programación, etc. La cantidad se captura en cada cotización.</p>
+<form method="post" class="tarjeta">
+  <input type="hidden" name="_token" value="{{ token }}">
+  <h2>Registrar concepto</h2>
+  {% if errores %}<p class="error" role="alert">Revise: {{ errores.values()|join('; ') }}. No se guardó el concepto.</p>{% endif %}
+  <label for="tipo">Tipo</label>
+  <select id="tipo" name="tipo" {% if 'tipo' in errores %}class="campo-error"{% endif %}>
+    {% for clave, nombre in tipos.items() %}<option value="{{ clave }}" {% if datos.tipo == clave %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+  </select>
+  <label for="descripcion">Descripción</label>
+  <input type="text" id="descripcion" name="descripcion" value="{{ datos.descripcion }}" {% if 'descripcion' in errores %}class="campo-error"{% endif %}>
+  <label for="unidad">Unidad (pieza, servicio, día, metro…)</label>
+  <input type="text" id="unidad" name="unidad" value="{{ datos.unidad }}" {% if 'unidad' in errores %}class="campo-error"{% endif %}>
+  <label for="precio">Precio unitario (MXN)</label>
+  <input type="text" id="precio" name="precio" value="{{ datos.precio }}" placeholder="0.00" {% if 'precio' in errores %}class="campo-error"{% endif %}>
+  <button class="primario" type="submit">Guardar concepto</button>
+</form>
+<form method="get" class="acciones"><input type="text" name="q" value="{{ q }}" placeholder="Filtrar por descripción" style="max-width:300px"><button class="secundario" type="submit">Filtrar</button></form>
+<div class="tabla-scroll">
+<table style="margin-top:10px">
+  <thead><tr><th>Tipo</th><th>Descripción</th><th>Unidad</th><th class="num">Precio</th><th></th></tr></thead>
+  <tbody>
+  {% for c in lista %}
+    <tr><td>{{ TIPOS[c.tipo] }}</td><td>{{ c.descripcion }}</td><td>{{ c.unidad }}</td>
+      <td class="num">{{ c.precio_unitario_centavos|moneda(c.moneda) }}</td>
+      <td class="acciones"><a href="{{ url_for('concepto_editar', id_concepto=c.id_concepto) }}">Editar</a>
+        {% if session.get('borrador') %}
+        <form method="post" action="{{ url_for('borrador_agregar') }}">
+          <input type="hidden" name="_token" value="{{ token }}"><input type="hidden" name="id_concepto" value="{{ c.id_concepto }}">
+          <input type="hidden" name="volver" value="{{ request.full_path }}">
+          <button class="secundario" type="submit">Agregar a la cotización</button>
+        </form>{% endif %}</td></tr>
+  {% else %}
+    <tr><td colspan="5">No hay conceptos manuales registrados.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

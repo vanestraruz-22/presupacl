@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block titulo %}{{ c.folio }}{% endblock %}
+{% block contenido %}
+<h1>{{ c.folio }} <span class="estatus {{ c.estatus }}">{{ c.estatus }}</span></h1>
+{% block acciones %}{% endblock %}
+<div class="tarjeta">
+  <p><b>Cliente:</b> {{ c.cliente_nombre_snapshot }} · {{ c.cliente_telefono_snapshot }}<br>
+  <b>Dirección:</b> {{ c.direccion_snapshot or 'Sin dirección elegida' }}<br>
+  <b>Fecha:</b> {{ c.creada_en[:10] }} · <b>Vigente hasta:</b> {{ c.vigencia_hasta }}
+  {% if c.id_origen %}<br><b>Duplicada de:</b> <a href="{{ url_for('cotizacion_detalle', id_cotizacion=c.id_origen) }}">cotización {{ c.id_origen }}</a>{% endif %}</p>
+</div>
+<div class="tabla-scroll">
+<table>
+  <thead><tr><th>Concepto</th><th>Tipo</th><th class="num">Cantidad</th><th>Unidad</th><th class="num">Precio unitario</th><th class="num">Importe</th></tr></thead>
+  <tbody>
+  {% for p in c.partidas %}
+    <tr {% if alertas and p.id_concepto in alertas %}class="fila-alerta"{% endif %}><td>{{ p.descripcion_snapshot }}{% if alertas and p.id_concepto in alertas %}<br><b>⚠ {{ alertas[p.id_concepto] }}</b>{% endif %}</td><td>{{ TIPOS[p.tipo_snapshot] }}</td>
+      <td class="num">{{ p.cantidad_milesimas|cantidad }}</td><td>{{ p.unidad_snapshot }}</td>
+      <td class="num">{{ p.precio_unitario_centavos|moneda(c.moneda) }}</td><td class="num">{{ p.importe_centavos|moneda(c.moneda) }}</td></tr>
+  {% endfor %}
+  </tbody>
+  <tfoot class="totales">
+    <tr><td colspan="5" class="num">Subtotal</td><td class="num">{{ c.subtotal_centavos|moneda(c.moneda) }}</td></tr>
+    <tr><td colspan="5" class="num">Utilidad ({{ c.metodo_utilidad }} {{ c.utilidad_tasa }})</td><td class="num">{{ c.utilidad_centavos|moneda(c.moneda) }}</td></tr>
+    <tr><td colspan="5" class="num">IVA ({{ c.iva_tasa }})</td><td class="num">{{ c.iva_centavos|moneda(c.moneda) }}</td></tr>
+    <tr><td colspan="5" class="num">Total</td><td class="num">{{ c.total_centavos|moneda(c.moneda) }}</td></tr>
+  </tfoot>
+</table>
+</div>
+<div class="tarjeta" style="margin-top:16px"><b>Condiciones comerciales</b><p style="white-space:pre-line">{{ c.condiciones }}</p></div>
+{% endblock %}
