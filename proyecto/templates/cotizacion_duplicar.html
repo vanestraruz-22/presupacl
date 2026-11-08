@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Duplicar {{ c.folio }}{% endblock %}
+{% block contenido %}
+<h1>Duplicar {{ c.folio }}</h1>
+<p class="nota">La nueva cotización quedará pendiente, con los mismos conceptos y cantidades y con los precios vigentes del catálogo. La original no cambia.</p>
+<div class="tarjeta">
+  <h2>Mismo cliente: {{ actual.nombre }}</h2>
+  {% for d in actual.direcciones %}
+  <form method="post" class="acciones" style="margin-bottom:6px">
+    <input type="hidden" name="_token" value="{{ token }}"><input type="hidden" name="id_cliente" value="{{ actual.id_cliente }}">
+    <input type="hidden" name="id_direccion" value="{{ d.id_direccion }}">
+    <button class="secundario" type="submit">Duplicar para {{ d.direccion }}</button>
+  </form>
+  {% endfor %}
+</div>
+<div class="tarjeta">
+  <h2>Otro cliente</h2>
+  <form method="get" class="acciones"><input type="text" name="q" value="{{ q }}" placeholder="Nombre o teléfono" style="max-width:300px"><button class="secundario" type="submit">Buscar</button></form>
+  {% for cl in clientes %}
+    <p><b>{{ cl.nombre }}</b> · {{ cl.telefono }}</p>
+    {% for d in cl.direcciones %}
+    <form method="post" class="acciones" style="margin-bottom:6px">
+      <input type="hidden" name="_token" value="{{ token }}"><input type="hidden" name="id_cliente" value="{{ cl.id_cliente }}">
+      <input type="hidden" name="id_direccion" value="{{ d.id_direccion }}">
+      <button class="secundario" type="submit">Duplicar para {{ d.direccion }}</button>
+    </form>
+    {% endfor %}
+  {% else %}{% if q %}<p class="nota">No hay clientes que coincidan.</p>{% endif %}{% endfor %}
+</div>
+{% endblock %}

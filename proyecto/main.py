@@ -20,14 +20,17 @@ import functools
 import os
 import secrets
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, g, redirect, render_template, request, send_file, session, url_for
 
 from proyecto.auth import auth
 from proyecto.catalogo import catalogo_syscom, cliente_api_syscom
 from proyecto.clientes import clientes_busqueda, clientes_registro
 from proyecto.conceptos import conceptos_manuales
 from proyecto.config import settings
-from proyecto.cotizaciones import calculadora_cotizacion, cotizaciones_creacion
+from proyecto.comunicacion import mensajeria_whatsapp
+from proyecto.cotizaciones import (calculadora_cotizacion, cotizaciones_creacion, cotizaciones_duplicado,
+                                   cotizaciones_edicion, cotizaciones_estado)
+from proyecto.documentos import generador_pdf_cotizacion
 from proyecto.cotizaciones.validador_cotizacion import ErrorCotizacion
 from proyecto.infraestructura import almacenamiento_datos
 
@@ -44,8 +47,9 @@ def login_requerido(vista):
     return envoltura
 
 
-def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno"):
+def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno", carpeta_pdf=None):
     app = Flask(__name__)
+    app.config["CARPETA_PDF"] = carpeta_pdf
     app.config["CLIENTE_SYSCOM"] = (
         cliente_api_syscom.obtener_cliente_configurado() if cliente_syscom == "entorno" else cliente_syscom
     )
@@ -324,6 +328,7 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno"):
                 else:
                     session.pop("borrador", None)
                     flash(f"Cotización {folio} guardada como pendiente.")
+                    generar_pdf_con_aviso(id_cotizacion)
                     return redirect(url_for("cotizacion_detalle", id_cotizacion=id_cotizacion))
             elif request.form.get("accion") == "cancelar":
                 session.pop("borrador", None)
@@ -344,13 +349,135 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno"):
         lista = almacenamiento_datos.listar_cotizaciones(bd())
         return render_template("cotizaciones.html", lista=lista)
 
-    @app.route("/cotizaciones/<int:id_cotizacion>")
-    @login_requerido
-    def cotizacion_detalle(id_cotizacion):
+    def cotizacion_o_404(id_cotizacion):
         cotizacion = almacenamiento_datos.obtener_cotizacion(bd(), id_cotizacion)
         if cotizacion is None:
             abort(404, f"No existe la cotización {id_cotizacion}.")
-        return render_template("cotizacion_detalle.html", c=cotizacion)
+        return cotizacion
+
+    def generar_pdf_con_aviso(id_cotizacion):
+        try:
+            return generador_pdf_cotizacion.generar_pdf(bd(), id_cotizacion, app.config["CARPETA_PDF"])
+        except generador_pdf_cotizacion.ErrorPdf as error:
+            flash(str(error))
+            return None
+
+    @app.route("/cotizaciones/<int:id_cotizacion>")
+    @login_requerido
+    def cotizacion_detalle(id_cotizacion):
+        cotizacion = cotizacion_o_404(id_cotizacion)
+        return render_template(
+            "cotizacion_detalle.html", c=cotizacion, editable=cotizaciones_estado.puede_editarse(cotizacion),
+            alertas=cotizaciones_duplicado.conceptos_por_revisar(bd(), cotizacion),
+            pdf_listo=generador_pdf_cotizacion.ruta_pdf_vigente(cotizacion) is not None,
+        )
+
+    # ---------- RF-11 / RF-12 PDF y WhatsApp ----------
+    @app.route("/cotizaciones/<int:id_cotizacion>/pdf")
+    @login_requerido
+    def cotizacion_pdf(id_cotizacion):
+        cotizacion = cotizacion_o_404(id_cotizacion)
+        ruta = generador_pdf_cotizacion.ruta_pdf_vigente(cotizacion)
+        if ruta is None:
+            try:
+                ruta = generador_pdf_cotizacion.generar_pdf(bd(), id_cotizacion, app.config["CARPETA_PDF"])
+            except generador_pdf_cotizacion.ErrorPdf as error:
+                # CA-52: se informa el error y no se entrega un archivo vacío.
+                return render_template("error.html", mensaje=str(error)), 500
+        return send_file(ruta, mimetype="application/pdf", as_attachment=request.args.get("descargar") == "1",
+                         download_name=f"{cotizacion['folio']}.pdf")
+
+    @app.route("/cotizaciones/<int:id_cotizacion>/whatsapp")
+    @login_requerido
+    def cotizacion_whatsapp(id_cotizacion):
+        cotizacion = cotizacion_o_404(id_cotizacion)
+        try:
+            enlace = mensajeria_whatsapp.enlace_cotizacion(cotizacion)
+        except mensajeria_whatsapp.ErrorTelefono as error:
+            flash(f"{error} Descargue el PDF y envíelo por otro medio.")
+            return redirect(url_for("cotizacion_detalle", id_cotizacion=id_cotizacion))
+        return redirect(enlace)
+
+    # ---------- RF-13 Estatus ----------
+    @app.route("/cotizaciones/<int:id_cotizacion>/estatus", methods=["POST"])
+    @login_requerido
+    def cotizacion_estatus(id_cotizacion):
+        cotizacion_o_404(id_cotizacion)
+        nuevo = request.form.get("estatus")
+        try:
+            cambio = cotizaciones_estado.cambiar_estatus(bd(), id_cotizacion, nuevo)
+        except ErrorCotizacion as error:
+            flash(str(error))
+        else:
+            flash(f"Estatus guardado: {nuevo}." if cambio else "La cotización ya tenía ese estatus; no cambió nada.")
+        return redirect(url_for("cotizacion_detalle", id_cotizacion=id_cotizacion))
+
+    # ---------- RF-14 Edición (solo pendiente) ----------
+    @app.route("/cotizaciones/<int:id_cotizacion>/editar", methods=["GET", "POST"])
+    @login_requerido
+    def cotizacion_editar(id_cotizacion):
+        cotizacion = cotizacion_o_404(id_cotizacion)
+        if not cotizaciones_estado.puede_editarse(cotizacion):
+            flash(cotizaciones_estado.AVISO_CERRADA.format(estatus=cotizacion["estatus"]))
+            return redirect(url_for("cotizacion_detalle", id_cotizacion=id_cotizacion))
+        cliente = almacenamiento_datos.obtener_cliente(bd(), cotizacion["id_cliente"])
+        renglones = [{"id_concepto": r["id_concepto"],
+                      "cantidad": calculadora_cotizacion.formato_cantidad(r["cantidad"]).replace(",", ""),
+                      "precio": f"{r['precio'] / 100:.2f}"} for r in cotizaciones_edicion.renglones_de(cotizacion)]
+        error = None
+        if request.method == "POST":
+            ids = request.form.getlist("id_concepto", type=int)
+            cantidades = request.form.getlist("cantidad")
+            precios = request.form.getlist("precio")
+            quitar = set(request.form.getlist("quitar", type=int))
+            renglones = [{"id_concepto": i, "cantidad": c, "precio": p or None}
+                         for n, (i, c, p) in enumerate(zip(ids, cantidades, precios)) if n not in quitar]
+            nuevo = request.form.get("nuevo_concepto", type=int)
+            if nuevo:
+                renglones.append({"id_concepto": nuevo, "cantidad": request.form.get("nueva_cantidad") or "1",
+                                  "precio": None})
+            if request.form.get("accion") == "guardar":
+                try:
+                    resultado = cotizaciones_edicion.editar_cotizacion(
+                        bd(), id_cotizacion, renglones, request.form.get("id_direccion"), app.config["CARPETA_PDF"])
+                except ErrorCotizacion as falla:
+                    error = str(falla)
+                else:
+                    flash(resultado["aviso"] or "Cambios guardados; se recalculó el total y se regeneró el PDF.")
+                    return redirect(url_for("cotizacion_detalle", id_cotizacion=id_cotizacion))
+        descripciones = almacenamiento_datos.obtener_conceptos(bd(), [r["id_concepto"] for r in renglones])
+        conceptos_lista = almacenamiento_datos.buscar_conceptos(bd(), origen="manual") + \
+            almacenamiento_datos.buscar_conceptos(bd(), origen="syscom")
+        return render_template("cotizacion_editar.html", c=cotizacion, cliente=cliente, renglones=renglones,
+                               descripciones=descripciones, conceptos=conceptos_lista, error=error), \
+            (400 if error else 200)
+
+    # ---------- RF-15 Duplicar cerrada ----------
+    @app.route("/cotizaciones/<int:id_cotizacion>/duplicar", methods=["GET", "POST"])
+    @login_requerido
+    def cotizacion_duplicar(id_cotizacion):
+        cotizacion = cotizacion_o_404(id_cotizacion)
+        if request.method == "POST":
+            try:
+                id_nueva, folio = cotizaciones_duplicado.duplicar(
+                    bd(), id_cotizacion, request.form.get("id_cliente"), request.form.get("id_direccion"))
+            except ErrorCotizacion as error:
+                flash(str(error))
+                return redirect(url_for("cotizacion_detalle", id_cotizacion=id_cotizacion))
+            flash(f"Se creó la cotización {folio} (pendiente) con precios vigentes. Revise los conceptos señalados.")
+            generar_pdf_con_aviso(id_nueva)
+            return redirect(url_for("cotizacion_detalle", id_cotizacion=id_nueva))
+        texto = request.args.get("q", "")
+        clientes = []
+        if texto.strip():
+            try:
+                encontrados = clientes_busqueda.buscar_clientes(bd(), texto)["resultados"]
+            except clientes_busqueda.ErrorBusqueda as error:
+                flash(str(error))
+                encontrados = []
+            clientes = [almacenamiento_datos.obtener_cliente(bd(), c["id_cliente"]) for c in encontrados]
+        actual = almacenamiento_datos.obtener_cliente(bd(), cotizacion["id_cliente"])
+        return render_template("cotizacion_duplicar.html", c=cotizacion, actual=actual, clientes=clientes, q=texto)
 
     @app.errorhandler(404)
     def no_encontrado(error):
