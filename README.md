@@ -6,6 +6,19 @@ Equipo **SofChi**: Sofía Quesada y Vanesa Estrada · Desarrollo de Aplicaciones
 
 ## Estado
 
+**Incremento 3 en la rama `incremento-3` (v0.3.0, entrega 17-nov-2026):** RF-05 catálogo SYSCOM, RF-06 conceptos manuales, RF-07 crear cotización, RF-08 cálculo y RF-20 validación.
+
+| Tarea | RF | Módulo | Estado |
+|---|---|---|---|
+| T-13 Tablas de conceptos y cotizaciones | RF-07 | almacenamiento_datos | Terminada |
+| T-14 Calculadora en enteros | RF-08 | calculadora_cotizacion | Terminada (CA-17, CA-45, CA-46) |
+| T-15 Conceptos manuales | RF-06 | conceptos_manuales | Terminada (CA-13, CA-42, CA-43) |
+| T-16 Catálogo SYSCOM (simulado) | RF-05 | cliente_api_syscom, catalogo_syscom | Terminada con SYSCOM simulado (CA-11, CA-41, CA-12) |
+| T-17 Crear cotización y validar | RF-07, RF-20 | cotizaciones_creacion, validador_cotizacion | Terminada (CA-14, CA-44, CA-16, CA-62, CA-63, CA-15) |
+| T-18 Pantallas | RF-05 a RF-08, RF-20 | main.py, templates/ | Terminada |
+
+SUPUESTOS del incremento 3: utilidad como recargo sobre el subtotal, IVA sobre subtotal + utilidad, redondeo al centavo mitad hacia arriba (D01); moneda MXN (D02); folio COT-AAAA-NNNN (D08). **El cliente real de SYSCOM no se ha probado contra la API** porque no hay credenciales; para probar sin API: `PRESUPACL_SYSCOM=demo python -m proyecto.main`.
+
 **Incremento 2 en la rama `incremento-2` (v0.2.0, entrega 12-nov-2026):** RF-01 inicio de sesión, RF-03 editar cliente, RF-04 buscar cliente, RF-21 configuración de ACL y las primeras pantallas web.
 
 | Tarea | RF | Módulo | Estado |
@@ -70,7 +83,10 @@ Crea `data/presupacl.db`, registra un cliente ficticio con dos direcciones, lo v
 ```
 proyecto/
   auth/              auth.py (inicio de sesión y hash de contraseñas)
+  catalogo/          cliente_api_syscom.py (único acceso a SYSCOM), catalogo_syscom.py
   clientes/          clientes_registro.py (registrar y editar), clientes_busqueda.py
+  conceptos/         conceptos_manuales.py
+  cotizaciones/      calculadora_cotizacion.py, validador_cotizacion.py, cotizaciones_creacion.py
   config/            settings.py (configuración de ACL)
   infraestructura/   almacenamiento_datos.py (único módulo que accede a la BD)
   templates/         pantallas HTML de la aplicación web
