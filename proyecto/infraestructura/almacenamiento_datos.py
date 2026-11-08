@@ -8,6 +8,7 @@ Cada tabla se agrega en el incremento que la usa:
 - Incremento 1 (RF-02): clientes, direcciones_cliente.
 - Incremento 2 (RF-01, RF-21): usuarios, configuracion_acl.
 - Incremento 3 (RF-05 a RF-08, RF-20): conceptos, cotizaciones, detalle_cotizacion.
+- Incremento 5 (RF-09, RF-10, RF-16): sincronizaciones_syscom, ordenes_servicio.
 """
 
 import sqlite3
@@ -116,6 +117,25 @@ CREATE TABLE IF NOT EXISTS detalle_cotizacion (
     importe_centavos          INTEGER NOT NULL CHECK (importe_centavos >= 0)
 );
 CREATE INDEX IF NOT EXISTS ix_detalle_cotizacion ON detalle_cotizacion (id_cotizacion);
+
+CREATE TABLE IF NOT EXISTS sincronizaciones_syscom (
+    id_sincronizacion  INTEGER PRIMARY KEY,
+    iniciada_en        TEXT NOT NULL,
+    finalizada_en      TEXT,
+    resultado          TEXT NOT NULL CHECK (resultado IN ('en_proceso', 'exitosa', 'fallida')),
+    detalle            TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ordenes_servicio (
+    id_orden                   INTEGER PRIMARY KEY,
+    id_cotizacion              INTEGER NOT NULL UNIQUE REFERENCES cotizaciones (id_cotizacion),
+    id_direccion               INTEGER NOT NULL REFERENCES direcciones_cliente (id_direccion),
+    creada_en                  TEXT NOT NULL,
+    cliente_nombre_snapshot    TEXT NOT NULL,
+    cliente_telefono_snapshot  TEXT NOT NULL,
+    direccion_snapshot         TEXT NOT NULL CHECK (length(trim(direccion_snapshot)) > 0),
+    tareas_json                TEXT NOT NULL
+);
 """
 
 
@@ -604,3 +624,94 @@ def guardar_pdf_ruta(conexion, id_cotizacion, ruta):
             conexion.execute("UPDATE cotizaciones SET pdf_ruta = ? WHERE id_cotizacion = ?", (ruta, id_cotizacion))
     except sqlite3.Error as error:
         raise ErrorAlmacenamiento("No se pudo registrar la ruta del PDF.") from error
+
+
+
+# ---------- Sincronización SYSCOM (RF-09, RF-10) ----------
+
+def iniciar_sincronizacion(conexion):
+    try:
+        with conexion:
+            cursor = conexion.execute(
+                "INSERT INTO sincronizaciones_syscom (iniciada_en, resultado) VALUES (?, 'en_proceso')", (_ahora_iso(),)
+            )
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo registrar el inicio de la sincronización.") from error
+    return cursor.lastrowid
+
+
+def finalizar_sincronizacion(conexion, id_sincronizacion, resultado, detalle, productos=None):
+    """Cierra el intento. Si es exitosa, guarda los productos en la MISMA transacción.
+
+    Así nunca queda una sincronización "exitosa" con precios a medias, ni
+    precios nuevos sin su registro (RF-09, CA-48).
+    """
+    try:
+        with conexion:
+            if productos:
+                guardar_productos_syscom_en_transaccion(conexion, productos)
+            conexion.execute(
+                "UPDATE sincronizaciones_syscom SET finalizada_en = ?, resultado = ?, detalle = ? WHERE id_sincronizacion = ?",
+                (_ahora_iso(), resultado, detalle, id_sincronizacion),
+            )
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo guardar el resultado de la sincronización.") from error
+
+
+def guardar_productos_syscom_en_transaccion(conexion, productos):
+    """Actualiza precio y existencia de productos ya existentes (dentro de una transacción abierta)."""
+    ahora = _ahora_iso()
+    for p in productos:
+        conexion.execute(
+            """UPDATE conceptos SET descripcion = ?, precio_unitario_centavos = ?, moneda = ?, existencia = ?,
+                      actualizado_en = ?
+               WHERE origen = 'syscom' AND syscom_id = ?""",
+            (p["descripcion"], p["precio_unitario_centavos"], p["moneda"], p.get("existencia"), ahora, p["syscom_id"]),
+        )
+
+
+def ultima_sincronizacion(conexion, resultado=None):
+    """Último intento (o el último con ese resultado) como dict, o None."""
+    if resultado:
+        fila = conexion.execute(
+            "SELECT * FROM sincronizaciones_syscom WHERE resultado = ? ORDER BY id_sincronizacion DESC LIMIT 1",
+            (resultado,),
+        ).fetchone()
+    else:
+        fila = conexion.execute("SELECT * FROM sincronizaciones_syscom ORDER BY id_sincronizacion DESC LIMIT 1").fetchone()
+    return dict(fila) if fila else None
+
+
+# ---------- Órdenes de servicio (RF-16, RF-17) ----------
+
+def aceptar_con_orden(conexion, id_cotizacion, orden):
+    """Cambia a aceptada y crea la única orden en una sola transacción (sección 3.8).
+
+    Si la cotización ya no está pendiente o la orden no se puede guardar, no cambia nada.
+    """
+    ahora = _ahora_iso()
+    try:
+        with conexion:
+            cursor = conexion.execute(
+                "UPDATE cotizaciones SET estatus = 'aceptada', actualizada_en = ? WHERE id_cotizacion = ? AND estatus = 'pendiente'",
+                (ahora, id_cotizacion),
+            )
+            if cursor.rowcount == 0:
+                raise ErrorEstadoCotizacion("La cotización ya no está pendiente; no se cambió el estatus.")
+            cursor = conexion.execute(
+                """INSERT INTO ordenes_servicio (id_cotizacion, id_direccion, creada_en, cliente_nombre_snapshot,
+                                                 cliente_telefono_snapshot, direccion_snapshot, tareas_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (id_cotizacion, orden["id_direccion"], ahora, orden["cliente_nombre_snapshot"],
+                 orden["cliente_telefono_snapshot"], orden["direccion_snapshot"], orden["tareas_json"]),
+            )
+    except ErrorAlmacenamiento:
+        raise
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo generar la orden; la cotización sigue pendiente.") from error
+    return cursor.lastrowid
+
+
+def obtener_orden_por_cotizacion(conexion, id_cotizacion):
+    fila = conexion.execute("SELECT * FROM ordenes_servicio WHERE id_cotizacion = ?", (id_cotizacion,)).fetchone()
+    return dict(fila) if fila else None
