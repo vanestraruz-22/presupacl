@@ -7,6 +7,7 @@ referencial. Ningún otro módulo debe ejecutar SQL.
 Cada tabla se agrega en el incremento que la usa:
 - Incremento 1 (RF-02): clientes, direcciones_cliente.
 - Incremento 2 (RF-01, RF-21): usuarios, configuracion_acl.
+- Incremento 3 (RF-05 a RF-08, RF-20): conceptos, cotizaciones, detalle_cotizacion.
 """
 
 import sqlite3
@@ -51,6 +52,70 @@ CREATE TABLE IF NOT EXISTS configuracion_acl (
     utilidad_tasa_default   TEXT NOT NULL,
     metodo_utilidad         TEXT NOT NULL CHECK (metodo_utilidad IN ('margen', 'recargo'))
 );
+
+CREATE TABLE IF NOT EXISTS conceptos (
+    id_concepto               INTEGER PRIMARY KEY,
+    origen                    TEXT NOT NULL CHECK (origen IN ('syscom', 'manual')),
+    syscom_id                 TEXT,
+    tipo                      TEXT NOT NULL CHECK (tipo IN ('SYSCOM', 'manual', 'mano_obra', 'viaticos',
+                                  'insumos', 'programacion', 'equipo_seguridad', 'dia_festivo')),
+    descripcion               TEXT NOT NULL CHECK (length(trim(descripcion)) > 0),
+    unidad                    TEXT NOT NULL CHECK (length(trim(unidad)) > 0),
+    marca                     TEXT,
+    categoria                 TEXT,
+    precio_unitario_centavos  INTEGER NOT NULL CHECK (precio_unitario_centavos >= 0),
+    moneda                    TEXT NOT NULL,
+    existencia                INTEGER,
+    creado_en                 TEXT NOT NULL,
+    actualizado_en            TEXT NOT NULL,
+    CHECK ((origen = 'syscom') = (syscom_id IS NOT NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_conceptos_syscom_id ON conceptos (syscom_id) WHERE origen = 'syscom';
+CREATE INDEX IF NOT EXISTS ix_conceptos_busqueda ON conceptos (origen, categoria, marca);
+
+CREATE TABLE IF NOT EXISTS cotizaciones (
+    id_cotizacion               INTEGER PRIMARY KEY,
+    folio                       TEXT NOT NULL UNIQUE,
+    id_cliente                  INTEGER NOT NULL REFERENCES clientes (id_cliente),
+    id_direccion                INTEGER REFERENCES direcciones_cliente (id_direccion),
+    id_origen                   INTEGER REFERENCES cotizaciones (id_cotizacion),
+    creada_en                   TEXT NOT NULL,
+    actualizada_en              TEXT NOT NULL,
+    estatus                     TEXT NOT NULL CHECK (estatus IN ('pendiente', 'aceptada', 'rechazada')),
+    moneda                      TEXT NOT NULL,
+    cliente_nombre_snapshot     TEXT NOT NULL,
+    cliente_telefono_snapshot   TEXT NOT NULL,
+    direccion_snapshot          TEXT,
+    acl_nombre_snapshot         TEXT NOT NULL,
+    acl_telefono_snapshot       TEXT NOT NULL,
+    acl_correo_snapshot         TEXT NOT NULL,
+    acl_logo_ruta_snapshot      TEXT,
+    condiciones                 TEXT NOT NULL,
+    vigencia_hasta              TEXT NOT NULL,
+    metodo_utilidad             TEXT NOT NULL CHECK (metodo_utilidad IN ('margen', 'recargo')),
+    utilidad_tasa               TEXT NOT NULL,
+    iva_tasa                    TEXT NOT NULL,
+    subtotal_centavos           INTEGER NOT NULL CHECK (subtotal_centavos >= 0),
+    utilidad_centavos           INTEGER NOT NULL CHECK (utilidad_centavos >= 0),
+    iva_centavos                INTEGER NOT NULL CHECK (iva_centavos >= 0),
+    total_centavos              INTEGER NOT NULL CHECK (total_centavos >= 0),
+    pdf_ruta                    TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_cotizaciones_cliente ON cotizaciones (id_cliente, creada_en);
+CREATE INDEX IF NOT EXISTS ix_cotizaciones_estatus ON cotizaciones (estatus, creada_en);
+
+CREATE TABLE IF NOT EXISTS detalle_cotizacion (
+    id_detalle                INTEGER PRIMARY KEY,
+    id_cotizacion             INTEGER NOT NULL REFERENCES cotizaciones (id_cotizacion),
+    id_concepto               INTEGER NOT NULL REFERENCES conceptos (id_concepto),
+    descripcion_snapshot      TEXT NOT NULL,
+    tipo_snapshot             TEXT NOT NULL,
+    unidad_snapshot           TEXT NOT NULL,
+    cantidad_milesimas        INTEGER NOT NULL CHECK (cantidad_milesimas > 0),
+    precio_unitario_centavos  INTEGER NOT NULL CHECK (precio_unitario_centavos >= 0),
+    importe_centavos          INTEGER NOT NULL CHECK (importe_centavos >= 0)
+);
+CREATE INDEX IF NOT EXISTS ix_detalle_cotizacion ON detalle_cotizacion (id_cotizacion);
 """
 
 
@@ -266,3 +331,219 @@ def obtener_configuracion(conexion):
         f"SELECT {', '.join(CAMPOS_CONFIGURACION)} FROM configuracion_acl WHERE id_configuracion = 1"
     ).fetchone()
     return dict(fila) if fila else None
+
+
+# ---------- Conceptos: catálogo SYSCOM y manuales (RF-05, RF-06) ----------
+
+COLUMNAS_CONCEPTO = (
+    "id_concepto, origen, syscom_id, tipo, descripcion, unidad, marca, categoria, "
+    "precio_unitario_centavos, moneda, existencia, creado_en, actualizado_en"
+)
+
+
+def guardar_productos_syscom(conexion, productos):
+    """Inserta o actualiza productos SYSCOM ya validados, todos o ninguno.
+
+    productos: dicts con syscom_id, descripcion, unidad, marca, categoria,
+    precio_unitario_centavos, moneda, existencia. Regresa {syscom_id: id_concepto}.
+    El índice único parcial evita duplicados si se reintenta (sección 3.5).
+    """
+    ahora = _ahora_iso()
+    ids = {}
+    try:
+        with conexion:
+            for p in productos:
+                conexion.execute(
+                    """
+                    INSERT INTO conceptos (origen, syscom_id, tipo, descripcion, unidad, marca, categoria,
+                                           precio_unitario_centavos, moneda, existencia, creado_en, actualizado_en)
+                    VALUES ('syscom', ?, 'SYSCOM', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (syscom_id) WHERE origen = 'syscom' DO UPDATE SET
+                        descripcion = excluded.descripcion, unidad = excluded.unidad,
+                        marca = excluded.marca, categoria = excluded.categoria,
+                        precio_unitario_centavos = excluded.precio_unitario_centavos,
+                        moneda = excluded.moneda, existencia = excluded.existencia,
+                        actualizado_en = excluded.actualizado_en
+                    """,
+                    (p["syscom_id"], p["descripcion"], p["unidad"], p.get("marca"), p.get("categoria"),
+                     p["precio_unitario_centavos"], p["moneda"], p.get("existencia"), ahora, ahora),
+                )
+                ids[p["syscom_id"]] = conexion.execute(
+                    "SELECT id_concepto FROM conceptos WHERE origen = 'syscom' AND syscom_id = ?",
+                    (p["syscom_id"],),
+                ).fetchone()[0]
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo guardar el catálogo de SYSCOM; se conservaron los datos anteriores.") from error
+    return ids
+
+
+def buscar_conceptos(conexion, origen=None, texto="", categoria="", marca="", limite=100):
+    """Busca conceptos por origen, palabra clave, categoría y marca (filtros opcionales)."""
+    condiciones, parametros = [], []
+    if origen:
+        condiciones.append("origen = ?")
+        parametros.append(origen)
+    for columna, valor in (("descripcion", texto), ("categoria", categoria), ("marca", marca)):
+        if valor and valor.strip():
+            condiciones.append(f"{columna} LIKE ? ESCAPE '\\'")
+            parametros.append(_patron_like(valor.strip()))
+    donde = ("WHERE " + " AND ".join(condiciones)) if condiciones else ""
+    try:
+        filas = conexion.execute(
+            f"SELECT {COLUMNAS_CONCEPTO} FROM conceptos {donde} ORDER BY descripcion, id_concepto LIMIT ?",
+            (*parametros, limite),
+        ).fetchall()
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo consultar el catálogo.") from error
+    return [dict(f) for f in filas]
+
+
+def obtener_concepto(conexion, id_concepto):
+    fila = conexion.execute(f"SELECT {COLUMNAS_CONCEPTO} FROM conceptos WHERE id_concepto = ?", (id_concepto,)).fetchone()
+    return dict(fila) if fila else None
+
+
+def obtener_conceptos(conexion, ids):
+    """Regresa {id_concepto: concepto} para los ids pedidos."""
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        return {}
+    marcas = ", ".join("?" for _ in ids)
+    filas = conexion.execute(f"SELECT {COLUMNAS_CONCEPTO} FROM conceptos WHERE id_concepto IN ({marcas})", ids).fetchall()
+    return {f["id_concepto"]: dict(f) for f in filas}
+
+
+def crear_concepto_manual(conexion, tipo, descripcion, unidad, precio_unitario_centavos, moneda):
+    ahora = _ahora_iso()
+    try:
+        with conexion:
+            cursor = conexion.execute(
+                """INSERT INTO conceptos (origen, tipo, descripcion, unidad, precio_unitario_centavos, moneda,
+                                          creado_en, actualizado_en)
+                   VALUES ('manual', ?, ?, ?, ?, ?, ?, ?)""",
+                (tipo, descripcion, unidad, precio_unitario_centavos, moneda, ahora, ahora),
+            )
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo guardar el concepto.") from error
+    return cursor.lastrowid
+
+
+def actualizar_concepto_manual(conexion, id_concepto, tipo, descripcion, unidad, precio_unitario_centavos):
+    try:
+        with conexion:
+            cursor = conexion.execute(
+                """UPDATE conceptos SET tipo = ?, descripcion = ?, unidad = ?, precio_unitario_centavos = ?,
+                          actualizado_en = ?
+                   WHERE id_concepto = ? AND origen = 'manual'""",
+                (tipo, descripcion, unidad, precio_unitario_centavos, _ahora_iso(), id_concepto),
+            )
+            if cursor.rowcount == 0:
+                raise ErrorNoEncontrado(f"No existe el concepto manual {id_concepto}.")
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo guardar el concepto.") from error
+
+
+# ---------- Cotizaciones (RF-07, RF-08, RF-20) ----------
+
+COLUMNAS_COTIZACION = (
+    "id_cotizacion, folio, id_cliente, id_direccion, id_origen, creada_en, actualizada_en, estatus, moneda, "
+    "cliente_nombre_snapshot, cliente_telefono_snapshot, direccion_snapshot, acl_nombre_snapshot, "
+    "acl_telefono_snapshot, acl_correo_snapshot, acl_logo_ruta_snapshot, condiciones, vigencia_hasta, "
+    "metodo_utilidad, utilidad_tasa, iva_tasa, subtotal_centavos, utilidad_centavos, iva_centavos, "
+    "total_centavos, pdf_ruta"
+)
+CAMPOS_PARTIDA = (
+    "id_concepto", "descripcion_snapshot", "tipo_snapshot", "unidad_snapshot",
+    "cantidad_milesimas", "precio_unitario_centavos", "importe_centavos",
+)
+
+
+def _siguiente_folio(conexion, anio):
+    """COT-AAAA-NNNN consecutivo por año (SUPUESTO D08). Se calcula dentro de la transacción."""
+    prefijo = f"COT-{anio}-"
+    ultimo = conexion.execute(
+        "SELECT folio FROM cotizaciones WHERE folio LIKE ? ORDER BY folio DESC LIMIT 1", (prefijo + "%",)
+    ).fetchone()
+    numero = int(ultimo[0].rsplit("-", 1)[1]) + 1 if ultimo else 1
+    return f"{prefijo}{numero:04d}"
+
+
+def _insertar_partidas(conexion, id_cotizacion, partidas):
+    for partida in partidas:
+        conexion.execute(
+            f"INSERT INTO detalle_cotizacion (id_cotizacion, {', '.join(CAMPOS_PARTIDA)}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (id_cotizacion, *(partida[c] for c in CAMPOS_PARTIDA)),
+        )
+
+
+def crear_cotizacion(conexion, cabecera, partidas):
+    """Guarda cabecera y partidas en una sola transacción (sección 3.8).
+
+    cabecera: dict con las columnas de cotizaciones excepto id, folio y fechas.
+    Regresa (id_cotizacion, folio). Si algo falla no queda nada guardado.
+    """
+    if not partidas:
+        raise ErrorAlmacenamiento("Una cotización necesita al menos una partida; no se guardó.")
+    ahora = _ahora_iso()
+    columnas = [c for c in cabecera]
+    try:
+        with conexion:
+            folio = _siguiente_folio(conexion, ahora[:4])
+            cursor = conexion.execute(
+                f"INSERT INTO cotizaciones (folio, creada_en, actualizada_en, {', '.join(columnas)}) "
+                f"VALUES (?, ?, ?, {', '.join('?' for _ in columnas)})",
+                (folio, ahora, ahora, *(cabecera[c] for c in columnas)),
+            )
+            id_cotizacion = cursor.lastrowid
+            _insertar_partidas(conexion, id_cotizacion, partidas)
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo guardar la cotización; no se guardó ningún dato.") from error
+    return id_cotizacion, folio
+
+
+def obtener_cotizacion(conexion, id_cotizacion):
+    """Cotización con sus partidas en "partidas", o None si no existe."""
+    fila = conexion.execute(
+        f"SELECT {COLUMNAS_COTIZACION} FROM cotizaciones WHERE id_cotizacion = ?", (id_cotizacion,)
+    ).fetchone()
+    if fila is None:
+        return None
+    cotizacion = dict(fila)
+    cotizacion["partidas"] = [
+        dict(p) for p in conexion.execute(
+            f"SELECT id_detalle, {', '.join(CAMPOS_PARTIDA)} FROM detalle_cotizacion "
+            "WHERE id_cotizacion = ? ORDER BY id_detalle",
+            (id_cotizacion,),
+        )
+    ]
+    return cotizacion
+
+
+def listar_cotizaciones(conexion, id_cliente=None, estatus=None, desde=None, hasta=None, limite=200):
+    """Cotizaciones más recientes primero, con filtros opcionales (RF-18, RF-19).
+
+    desde/hasta: fechas AAAA-MM-DD inclusivas sobre la fecha local de creada_en.
+    """
+    condiciones, parametros = [], []
+    if id_cliente is not None:
+        condiciones.append("id_cliente = ?")
+        parametros.append(id_cliente)
+    if estatus:
+        condiciones.append("estatus = ?")
+        parametros.append(estatus)
+    if desde:
+        condiciones.append("substr(creada_en, 1, 10) >= ?")
+        parametros.append(desde)
+    if hasta:
+        condiciones.append("substr(creada_en, 1, 10) <= ?")
+        parametros.append(hasta)
+    donde = ("WHERE " + " AND ".join(condiciones)) if condiciones else ""
+    try:
+        filas = conexion.execute(
+            "SELECT id_cotizacion, folio, id_cliente, cliente_nombre_snapshot, creada_en, estatus, total_centavos, "
+            f"moneda, id_origen FROM cotizaciones {donde} ORDER BY creada_en DESC, id_cotizacion DESC LIMIT ?",
+            (*parametros, limite),
+        ).fetchall()
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo consultar el historial de cotizaciones.") from error
+    return [dict(f) for f in filas]

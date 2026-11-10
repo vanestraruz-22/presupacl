@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titulo %}Nueva cotización{% endblock %}
+{% block contenido %}
+<h1>Nueva cotización · {{ cliente.nombre }}</h1>
+{% if not config_completa %}<p class="error">Falta capturar los datos de ACL en <a href="{{ url_for('configuracion') }}">Configuración</a>; sin ellos no se puede guardar.</p>{% endif %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<div class="tarjeta">
+  <h2>1. Agregar conceptos</h2>
+  <form method="post" action="{{ url_for('borrador_agregar') }}" class="acciones">
+    <input type="hidden" name="_token" value="{{ token }}">
+    <select name="id_concepto" style="max-width:520px">
+      {% for c in conceptos %}<option value="{{ c.id_concepto }}">{{ TIPOS[c.tipo] }} · {{ c.descripcion }} · {{ c.precio_unitario_centavos|moneda(c.moneda) }}</option>{% endfor %}
+    </select>
+    <input type="text" name="cantidad" value="1" style="width:6em" aria-label="Cantidad">
+    <button class="secundario" type="submit">Agregar</button>
+  </form>
+  <p class="nota">¿No está en la lista? Búsquelo en el <a href="{{ url_for('catalogo') }}">catálogo SYSCOM</a> o regístrelo en <a href="{{ url_for('conceptos') }}">conceptos manuales</a>.</p>
+</div>
+
+<form method="post" class="tarjeta">
+  <input type="hidden" name="_token" value="{{ token }}">
+  <h2>2. Revisar cantidades y precios</h2>
+  <label for="id_direccion">Dirección de instalación</label>
+  <select id="id_direccion" name="id_direccion">
+    {% for d in cliente.direcciones %}<option value="{{ d.id_direccion }}" {% if d.id_direccion == borrador.id_direccion %}selected{% endif %}>{{ d.direccion }}</option>{% endfor %}
+  </select>
+  {% if borrador.renglones %}
+  <div class="tabla-scroll">
+  <table class="tabla-captura" style="margin-top:12px">
+    <thead><tr><th>Concepto</th><th>Tipo</th><th>Cantidad</th><th>Precio unitario</th><th class="num">Importe</th><th></th></tr></thead>
+    <tbody>
+    {% for r in borrador.renglones %}
+      {% set p = partidas[loop.index0] if partidas else none %}
+      <tr>
+        <td>{{ p.descripcion_snapshot if p else 'Concepto ' ~ r.id_concepto }}</td>
+        <td>{{ TIPOS[p.tipo_snapshot] if p else '' }}</td>
+        <td><input type="text" name="cantidad" value="{{ r.cantidad }}" aria-label="Cantidad renglón {{ loop.index }}"></td>
+        <td><input type="text" name="precio" value="{{ r.precio or '' }}" placeholder="{{ '%.2f'|format(p.precio_unitario_centavos / 100) if p else '' }}" aria-label="Precio renglón {{ loop.index }}"></td>
+        <td class="num">{{ p.importe_centavos|moneda if p else '' }}</td>
+        <td><button class="secundario" type="submit" name="quitar" value="{{ loop.index0 }}">Quitar</button></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+    {% if resultado %}
+    <tfoot class="totales">
+      <tr><td colspan="4" class="num">Subtotal</td><td class="num">{{ resultado.subtotal_centavos|moneda }}</td><td></td></tr>
+      <tr><td colspan="4" class="num">Utilidad ({{ config.metodo_utilidad }} {{ config.utilidad_tasa_default }})</td><td class="num">{{ resultado.utilidad_centavos|moneda }}</td><td></td></tr>
+      <tr><td colspan="4" class="num">IVA ({{ config.iva_tasa_default }})</td><td class="num">{{ resultado.iva_centavos|moneda }}</td><td></td></tr>
+      <tr><td colspan="4" class="num">Total</td><td class="num">{{ resultado.total_centavos|moneda }}</td><td></td></tr>
+    </tfoot>
+    {% endif %}
+  </table>
+  </div>
+  <p class="nota">Deje el precio vacío para usar el precio vigente del catálogo.</p>
+  {% else %}
+  <p class="alerta">La cotización todavía no tiene conceptos. Agregue al menos uno (puede ser solo mano de obra).</p>
+  {% endif %}
+  <div class="acciones">
+    <button class="secundario" type="submit" name="accion" value="actualizar" style="margin-top:12px">Actualizar totales</button>
+    <button class="primario" type="submit" name="accion" value="guardar">3. Guardar cotización</button>
+    <button class="secundario" type="submit" name="accion" value="cancelar" style="margin-top:12px">Descartar</button>
+  </div>
+</form>
+{% endblock %}

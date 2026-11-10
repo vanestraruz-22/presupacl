@@ -10,6 +10,8 @@ Variables de entorno (opcionales, nunca en el código):
     PRESUPACL_SECRET_KEY  llave de las sesiones; si falta se genera una al
                           arrancar y las sesiones se cierran al reiniciar.
     PRESUPACL_HOST        127.0.0.1 por defecto; 0.0.0.0 para la red local (RNF-06).
+    PRESUPACL_SYSCOM      "demo" usa productos ficticios en lugar de la API.
+    SYSCOM_CLIENT_ID / SYSCOM_CLIENT_SECRET  credenciales de la API de SYSCOM.
     PRESUPACL_PORT        8000 por defecto. No se usa 5000 porque en macOS lo
                           ocupa el Receptor AirPlay y el navegador da error 403.
 """
@@ -21,8 +23,12 @@ import secrets
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 
 from proyecto.auth import auth
+from proyecto.catalogo import catalogo_syscom, cliente_api_syscom
 from proyecto.clientes import clientes_busqueda, clientes_registro
+from proyecto.conceptos import conceptos_manuales
 from proyecto.config import settings
+from proyecto.cotizaciones import calculadora_cotizacion, cotizaciones_creacion
+from proyecto.cotizaciones.validador_cotizacion import ErrorCotizacion
 from proyecto.infraestructura import almacenamiento_datos
 
 
@@ -38,8 +44,14 @@ def login_requerido(vista):
     return envoltura
 
 
-def crear_app(ruta_bd=None, secret_key=None):
+def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno"):
     app = Flask(__name__)
+    app.config["CLIENTE_SYSCOM"] = (
+        cliente_api_syscom.obtener_cliente_configurado() if cliente_syscom == "entorno" else cliente_syscom
+    )
+    app.jinja_env.filters["moneda"] = calculadora_cotizacion.formato_moneda
+    app.jinja_env.filters["cantidad"] = calculadora_cotizacion.formato_cantidad
+    app.jinja_env.globals["TIPOS"] = cotizaciones_creacion.TIPOS
     app.config["SECRET_KEY"] = secret_key or os.environ.get("PRESUPACL_SECRET_KEY") or secrets.token_hex(32)
     app.config["RUTA_BD"] = ruta_bd
     app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # logo de hasta 5 MB
@@ -178,6 +190,167 @@ def crear_app(ruta_bd=None, secret_key=None):
             flash("Configuración guardada.")
             return redirect(url_for("configuracion"))
         return render_template("configuracion.html", config=config, error=None, campos=[])
+
+    # ---------- RF-06 Conceptos manuales ----------
+    @app.route("/conceptos", methods=["GET", "POST"])
+    @login_requerido
+    def conceptos():
+        datos, errores = {"tipo": "mano_obra", "descripcion": "", "unidad": "servicio", "precio": ""}, {}
+        if request.method == "POST":
+            datos = {c: request.form.get(c, "") for c in ("tipo", "descripcion", "unidad", "precio")}
+            try:
+                conceptos_manuales.registrar_concepto(bd(), **datos)
+            except conceptos_manuales.ErrorConcepto as error:
+                errores = error.errores
+            else:
+                flash("Concepto registrado.")
+                return redirect(url_for("conceptos"))
+        texto = request.args.get("q", "")
+        return render_template("conceptos.html", lista=conceptos_manuales.listar(bd(), texto), q=texto,
+                               datos=datos, errores=errores, tipos=conceptos_manuales.TIPOS_MANUALES), \
+            (400 if errores else 200)
+
+    @app.route("/conceptos/<int:id_concepto>", methods=["GET", "POST"])
+    @login_requerido
+    def concepto_editar(id_concepto):
+        concepto = almacenamiento_datos.obtener_concepto(bd(), id_concepto)
+        if concepto is None or concepto["origen"] != "manual":
+            abort(404, "No existe ese concepto manual.")
+        datos = {"tipo": concepto["tipo"], "descripcion": concepto["descripcion"], "unidad": concepto["unidad"],
+                 "precio": f"{concepto['precio_unitario_centavos'] / 100:.2f}"}
+        errores = {}
+        if request.method == "POST":
+            datos = {c: request.form.get(c, "") for c in ("tipo", "descripcion", "unidad", "precio")}
+            try:
+                conceptos_manuales.modificar_concepto(bd(), id_concepto, **datos)
+            except conceptos_manuales.ErrorConcepto as error:
+                errores = error.errores
+            else:
+                flash("Concepto actualizado. Las cotizaciones ya guardadas no cambian.")
+                return redirect(url_for("conceptos"))
+        return render_template("concepto_editar.html", concepto=concepto, datos=datos, errores=errores,
+                               tipos=conceptos_manuales.TIPOS_MANUALES), (400 if errores else 200)
+
+    # ---------- RF-05 Catálogo SYSCOM ----------
+    @app.route("/catalogo")
+    @login_requerido
+    def catalogo():
+        filtros = {c: request.args.get(c, "") for c in ("texto", "categoria", "marca")}
+        respuesta, error = None, None
+        if any(v.strip() for v in filtros.values()):
+            try:
+                respuesta = catalogo_syscom.buscar_productos(bd(), app.config["CLIENTE_SYSCOM"], **filtros)
+            except (catalogo_syscom.ErrorCatalogo, almacenamiento_datos.ErrorAlmacenamiento) as falla:
+                error = str(falla)
+        return render_template("catalogo.html", filtros=filtros, respuesta=respuesta, error=error,
+                               borrador=session.get("borrador"))
+
+    # ---------- RF-07, RF-08, RF-20 Cotización nueva (borrador en la sesión) ----------
+    def borrador_actual():
+        borrador = session.get("borrador")
+        if not borrador:
+            return None
+        cliente = almacenamiento_datos.obtener_cliente(bd(), borrador["id_cliente"])
+        if cliente is None:
+            session.pop("borrador", None)
+            return None
+        return borrador, cliente
+
+    def vista_previa(borrador):
+        """Partidas y totales del borrador, o el error que impide calcularlos."""
+        if not borrador["renglones"]:
+            return [], None, None
+        try:
+            partidas = cotizaciones_creacion.preparar_partidas(bd(), borrador["renglones"])
+            config = settings.obtener_configuracion(bd())
+            resultado = cotizaciones_creacion.totales(partidas, config["metodo_utilidad"],
+                                                      config["utilidad_tasa_default"], config["iva_tasa_default"])
+            return partidas, resultado, None
+        except ErrorCotizacion as error:
+            return [], None, str(error)
+
+    @app.route("/cotizaciones/nueva", methods=["POST"])
+    @login_requerido
+    def cotizacion_nueva():
+        cliente = almacenamiento_datos.obtener_cliente(bd(), request.form.get("id_cliente", type=int))
+        if cliente is None:
+            abort(404, "No existe el cliente.")
+        session["borrador"] = {"id_cliente": cliente["id_cliente"],
+                               "id_direccion": cliente["direcciones"][0]["id_direccion"], "renglones": []}
+        return redirect(url_for("borrador"))
+
+    @app.route("/borrador/agregar", methods=["POST"])
+    @login_requerido
+    def borrador_agregar():
+        actual = borrador_actual()
+        if actual is None:
+            flash("Primero elija un cliente y presione «Nueva cotización».")
+            return redirect(url_for("clientes"))
+        borrador, _ = actual
+        borrador["renglones"].append({"id_concepto": request.form.get("id_concepto", type=int),
+                                      "cantidad": request.form.get("cantidad") or "1", "precio": None})
+        session["borrador"] = borrador
+        flash("Concepto agregado a la cotización.")
+        return redirect(request.form.get("volver") or url_for("borrador"))
+
+    @app.route("/borrador", methods=["GET", "POST"])
+    @login_requerido
+    def borrador():
+        actual = borrador_actual()
+        if actual is None:
+            flash("No hay una cotización en captura. Busque un cliente y presione «Nueva cotización».")
+            return redirect(url_for("clientes"))
+        borrador, cliente = actual
+        error = None
+        if request.method == "POST":
+            borrador["id_direccion"] = request.form.get("id_direccion", type=int)
+            cantidades = request.form.getlist("cantidad")
+            precios = request.form.getlist("precio")
+            for i, renglon in enumerate(borrador["renglones"]):
+                if i < len(cantidades):
+                    renglon["cantidad"] = cantidades[i]
+                if i < len(precios):
+                    renglon["precio"] = precios[i] or None
+            quitar = request.form.get("quitar", type=int)
+            if quitar is not None and 0 <= quitar < len(borrador["renglones"]):
+                borrador["renglones"].pop(quitar)
+            session["borrador"] = borrador
+            if request.form.get("accion") == "guardar":
+                try:
+                    id_cotizacion, folio = cotizaciones_creacion.crear_cotizacion(
+                        bd(), cliente["id_cliente"], borrador["renglones"], borrador["id_direccion"])
+                except ErrorCotizacion as falla:
+                    error = str(falla)
+                else:
+                    session.pop("borrador", None)
+                    flash(f"Cotización {folio} guardada como pendiente.")
+                    return redirect(url_for("cotizacion_detalle", id_cotizacion=id_cotizacion))
+            elif request.form.get("accion") == "cancelar":
+                session.pop("borrador", None)
+                flash("Se descartó la cotización en captura.")
+                return redirect(url_for("cliente_detalle", id_cliente=cliente["id_cliente"]))
+        partidas, resultado, error_previa = vista_previa(borrador)
+        conceptos_lista = almacenamiento_datos.buscar_conceptos(bd(), origen="manual") + \
+            almacenamiento_datos.buscar_conceptos(bd(), origen="syscom")
+        return render_template(
+            "borrador.html", borrador=borrador, cliente=cliente, partidas=partidas, resultado=resultado,
+            error=error or error_previa, conceptos=conceptos_lista,
+            config=settings.obtener_configuracion(bd()), config_completa=settings.configuracion_completa(bd()),
+        ), (400 if error else 200)
+
+    @app.route("/cotizaciones")
+    @login_requerido
+    def cotizaciones():
+        lista = almacenamiento_datos.listar_cotizaciones(bd())
+        return render_template("cotizaciones.html", lista=lista)
+
+    @app.route("/cotizaciones/<int:id_cotizacion>")
+    @login_requerido
+    def cotizacion_detalle(id_cotizacion):
+        cotizacion = almacenamiento_datos.obtener_cotizacion(bd(), id_cotizacion)
+        if cotizacion is None:
+            abort(404, f"No existe la cotización {id_cotizacion}.")
+        return render_template("cotizacion_detalle.html", c=cotizacion)
 
     @app.errorhandler(404)
     def no_encontrado(error):

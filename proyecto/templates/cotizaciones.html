@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Cotizaciones{% endblock %}
+{% block contenido %}
+<h1>Cotizaciones</h1>
+{% block filtros %}{% endblock %}
+{% if mensaje %}<p class="nota">{{ mensaje }}</p>{% endif %}
+<div class="tabla-scroll">
+<table>
+  <thead><tr><th>Folio</th><th>Fecha</th><th>Cliente</th><th>Estatus</th><th class="num">Total</th></tr></thead>
+  <tbody>
+  {% for c in lista %}
+    <tr><td><a href="{{ url_for('cotizacion_detalle', id_cotizacion=c.id_cotizacion) }}">{{ c.folio }}</a></td>
+      <td>{{ c.creada_en[:10] }}</td><td>{{ c.cliente_nombre_snapshot }}</td>
+      <td><span class="estatus {{ c.estatus }}">{{ c.estatus }}</span></td>
+      <td class="num">{{ c.total_centavos|moneda(c.moneda) }}</td></tr>
+  {% else %}
+    <tr><td colspan="5">No hay cotizaciones registradas.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

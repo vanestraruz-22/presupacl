@@ -14,5 +14,10 @@
     <a class="boton" href="{{ url_for('cliente_nuevo') }}">Registrar cliente</a>
   </form>
 </div>
-<p class="nota">Las cotizaciones se agregan en los siguientes incrementos.</p>
+<div class="tarjeta">
+  <h2>Cotizaciones</h2>
+  <p>Para cotizar: busque al cliente, ábralo y presione <b>Nueva cotización</b>. Después agregue conceptos del
+  <a href="{{ url_for('catalogo') }}">catálogo SYSCOM</a> o de los <a href="{{ url_for('conceptos') }}">conceptos manuales</a>.</p>
+  <a class="boton" href="{{ url_for('cotizaciones') }}">Ver cotizaciones</a>
+</div>
 {% endblock %}

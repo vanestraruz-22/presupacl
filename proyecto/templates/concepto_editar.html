@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Editar concepto{% endblock %}
+{% block contenido %}
+<h1>Editar concepto</h1>
+{% if errores %}<p class="error" role="alert">Revise: {{ errores.values()|join('; ') }}. No se guardó el concepto.</p>{% endif %}
+<form method="post" class="tarjeta">
+  <input type="hidden" name="_token" value="{{ token }}">
+  <label for="tipo">Tipo</label>
+  <select id="tipo" name="tipo">
+    {% for clave, nombre in tipos.items() %}<option value="{{ clave }}" {% if datos.tipo == clave %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+  </select>
+  <label for="descripcion">Descripción</label>
+  <input type="text" id="descripcion" name="descripcion" value="{{ datos.descripcion }}" {% if 'descripcion' in errores %}class="campo-error"{% endif %}>
+  <label for="unidad">Unidad</label>
+  <input type="text" id="unidad" name="unidad" value="{{ datos.unidad }}" {% if 'unidad' in errores %}class="campo-error"{% endif %}>
+  <label for="precio">Precio unitario (MXN)</label>
+  <input type="text" id="precio" name="precio" value="{{ datos.precio }}" {% if 'precio' in errores %}class="campo-error"{% endif %}>
+  <button class="primario" type="submit">Guardar cambios</button>
+  <p class="nota">Cambiar el precio aquí no modifica las cotizaciones ya guardadas.</p>
+</form>
+{% endblock %}

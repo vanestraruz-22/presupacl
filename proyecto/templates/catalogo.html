@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titulo %}Catálogo SYSCOM{% endblock %}
+{% block contenido %}
+<h1>Catálogo SYSCOM</h1>
+<form method="get" class="tarjeta">
+  <label for="texto">Palabra clave</label>
+  <input type="text" id="texto" name="texto" value="{{ filtros.texto }}" autofocus>
+  <label for="categoria">Categoría</label>
+  <input type="text" id="categoria" name="categoria" value="{{ filtros.categoria }}">
+  <label for="marca">Marca</label>
+  <input type="text" id="marca" name="marca" value="{{ filtros.marca }}">
+  <button class="primario" type="submit">Buscar</button>
+</form>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if respuesta %}
+  {% if respuesta.aviso %}<p class="alerta" role="status">{{ respuesta.aviso }}</p>{% endif %}
+  {% if respuesta.resultados %}
+  <div class="tabla-scroll">
+  <table>
+    <thead><tr><th>Producto</th><th>Marca</th><th>Categoría</th><th class="num">Precio</th><th class="num">Existencia</th><th>Actualizado</th><th></th></tr></thead>
+    <tbody>
+    {% for p in respuesta.resultados %}
+      <tr><td>{{ p.descripcion }}</td><td>{{ p.marca or '' }}</td><td>{{ p.categoria or '' }}</td>
+        <td class="num">{{ p.precio_unitario_centavos|moneda(p.moneda) }}</td>
+        <td class="num">{{ p.existencia if p.existencia is not none else 'N/D' }}</td>
+        <td class="nota">{{ p.actualizado_en[:16]|replace('T', ' ') }}</td>
+        <td>{% if borrador %}
+          <form method="post" action="{{ url_for('borrador_agregar') }}">
+            <input type="hidden" name="_token" value="{{ token }}"><input type="hidden" name="id_concepto" value="{{ p.id_concepto }}">
+            <input type="hidden" name="volver" value="{{ request.full_path }}">
+            <button class="secundario" type="submit">Agregar</button>
+          </form>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if not borrador %}<p class="nota">Para agregar productos, primero inicie una cotización desde la ficha del cliente.</p>{% endif %}
+  {% endif %}
+{% endif %}
+{% endblock %}

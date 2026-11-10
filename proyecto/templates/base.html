@@ -25,6 +25,18 @@
     .error { color: var(--error); background: #fdecee; padding: 10px; border-radius: 4px; }
     .aviso { color: var(--ok); background: #e8f5ec; padding: 10px; border-radius: 4px; }
     .nota { color: #5a6570; font-size: .9em; }
+    .num { text-align: right; white-space: nowrap; }
+    .tabla-captura input { width: 7em; padding: 4px; }
+    .totales td { font-weight: 600; }
+    .estatus { padding: 2px 8px; border-radius: 10px; font-size: .85em; background: #e7ecf2; }
+    .estatus.aceptada { background: #e8f5ec; color: var(--ok); }
+    .estatus.rechazada { background: #fdecee; color: var(--error); }
+    .alerta { background: #fff4e5; color: #8a4b00; padding: 10px; border-radius: 4px; }
+    .fila-alerta td { background: #fff4e5; }
+    .acciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .acciones form { margin: 0; }
+    button.secundario { background: #fff; color: var(--azul); border: 1px solid var(--azul); padding: 6px 12px; border-radius: 4px; cursor: pointer; font: inherit; }
+    .tabla-scroll { overflow-x: auto; }
   </style>
 </head>
 <body>
@@ -33,7 +45,11 @@
     <strong>PresupACL</strong>
     <a href="{{ url_for('panel') }}">Inicio</a>
     <a href="{{ url_for('clientes') }}">Clientes</a>
+    <a href="{{ url_for('cotizaciones') }}">Cotizaciones</a>
+    <a href="{{ url_for('catalogo') }}">Catálogo SYSCOM</a>
+    <a href="{{ url_for('conceptos') }}">Conceptos</a>
     <a href="{{ url_for('configuracion') }}">Configuración</a>
+    {% if session.get('borrador') %}<a href="{{ url_for('borrador') }}"><b>▶ Cotización en captura</b></a>{% endif %}
     <form method="post" action="{{ url_for('logout') }}" style="margin:0">
       <input type="hidden" name="_token" value="{{ token }}">
       <button type="submit">Salir ({{ usuario_actual }})</button>
