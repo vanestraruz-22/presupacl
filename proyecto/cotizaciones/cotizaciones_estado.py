@@ -48,8 +48,7 @@ def cambiar_estatus(conexion, id_cotizacion, nuevo):
 
 
 def _aceptar(conexion, cotizacion):
-    try:
-        almacenamiento_datos.actualizar_estatus(conexion, cotizacion["id_cotizacion"], "aceptada", "pendiente")
-    except almacenamiento_datos.ErrorAlmacenamiento as error:
-        raise ErrorCotizacion(str(error)) from error
+    """Aceptar genera la orden de servicio en la misma transacción (RF-16, incremento 5)."""
+    from proyecto.ordenes import ordenes_servicio  # import local: evita un ciclo entre módulos
+    ordenes_servicio.aceptar_y_generar(conexion, cotizacion)
     return True

@@ -23,7 +23,7 @@ import secrets
 from flask import Flask, abort, flash, g, redirect, render_template, request, send_file, session, url_for
 
 from proyecto.auth import auth
-from proyecto.catalogo import catalogo_syscom, cliente_api_syscom
+from proyecto.catalogo import catalogo_syscom, cliente_api_syscom, sincronizador_precios_syscom
 from proyecto.clientes import clientes_busqueda, clientes_registro
 from proyecto.conceptos import conceptos_manuales
 from proyecto.config import settings
@@ -31,6 +31,8 @@ from proyecto.comunicacion import mensajeria_whatsapp
 from proyecto.cotizaciones import (calculadora_cotizacion, cotizaciones_creacion, cotizaciones_duplicado,
                                    cotizaciones_edicion, cotizaciones_estado)
 from proyecto.documentos import generador_pdf_cotizacion
+from proyecto.historial import historial_cotizaciones
+from proyecto.ordenes import ordenes_servicio
 from proyecto.cotizaciones.validador_cotizacion import ErrorCotizacion
 from proyecto.infraestructura import almacenamiento_datos
 
@@ -113,7 +115,17 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno", carpeta_p
     @app.route("/")
     @login_requerido
     def panel():
-        return render_template("panel.html", config_completa=settings.configuracion_completa(bd()))
+        return render_template("panel.html", config_completa=settings.configuracion_completa(bd()),
+                               sincronizacion=sincronizador_precios_syscom.estado(bd()))
+
+    # ---------- RF-09 / RF-10 Sincronización manual ----------
+    @app.route("/sincronizar", methods=["POST"])
+    @login_requerido
+    def sincronizar():
+        resultado = sincronizador_precios_syscom.sincronizar(bd(), app.config["CLIENTE_SYSCOM"])
+        flash(("Precios de SYSCOM actualizados. " if resultado["resultado"] == "exitosa"
+               else "La actualización no se completó. ") + resultado["detalle"])
+        return redirect(url_for("panel"))
 
     # ---------- RF-04 Búsqueda / RF-02 Registro / RF-03 Edición ----------
     @app.route("/clientes")
@@ -343,11 +355,29 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno", carpeta_p
             config=settings.obtener_configuracion(bd()), config_completa=settings.configuracion_completa(bd()),
         ), (400 if error else 200)
 
+    # ---------- RF-18 / RF-19 Historial ----------
     @app.route("/cotizaciones")
     @login_requerido
     def cotizaciones():
-        lista = almacenamiento_datos.listar_cotizaciones(bd())
-        return render_template("cotizaciones.html", lista=lista)
+        filtros = {c: request.args.get(c, "") for c in ("estatus", "desde", "hasta")}
+        error = None
+        try:
+            respuesta = historial_cotizaciones.filtrar(bd(), **filtros)
+        except historial_cotizaciones.ErrorHistorial as falla:
+            error = str(falla)  # CA-35: no se aplica el filtro
+            respuesta = historial_cotizaciones.filtrar(bd())
+        return render_template("cotizaciones.html", lista=respuesta["cotizaciones"], mensaje=respuesta["mensaje"],
+                               filtros=filtros, error=error, titulo="Cotizaciones"), (400 if error else 200)
+
+    @app.route("/clientes/<int:id_cliente>/historial")
+    @login_requerido
+    def cliente_historial(id_cliente):
+        try:
+            respuesta = historial_cotizaciones.historial_cliente(bd(), id_cliente)
+        except historial_cotizaciones.ErrorHistorial as error:
+            abort(404, str(error))
+        return render_template("cotizaciones.html", lista=respuesta["cotizaciones"], mensaje=respuesta["mensaje"],
+                               filtros=None, error=None, titulo=f"Historial de {respuesta['cliente']['nombre']}")
 
     def cotizacion_o_404(id_cotizacion):
         cotizacion = almacenamiento_datos.obtener_cotizacion(bd(), id_cotizacion)
@@ -370,7 +400,23 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno", carpeta_p
             "cotizacion_detalle.html", c=cotizacion, editable=cotizaciones_estado.puede_editarse(cotizacion),
             alertas=cotizaciones_duplicado.conceptos_por_revisar(bd(), cotizacion),
             pdf_listo=generador_pdf_cotizacion.ruta_pdf_vigente(cotizacion) is not None,
+            orden=ordenes_servicio.obtener(bd(), id_cotizacion),
         )
+
+    # ---------- RF-17 Mensaje para el técnico ----------
+    @app.route("/cotizaciones/<int:id_cotizacion>/orden/whatsapp")
+    @login_requerido
+    def orden_whatsapp(id_cotizacion):
+        cotizacion = cotizacion_o_404(id_cotizacion)
+        orden = ordenes_servicio.obtener(bd(), id_cotizacion)
+        if orden is None:
+            abort(404, "Esta cotización no tiene orden de servicio.")
+        try:
+            enlace = ordenes_servicio.enlace_tecnico(orden, cotizacion["folio"], request.args.get("telefono"))
+        except mensajeria_whatsapp.ErrorTelefono as error:
+            flash(f"Técnico: {error}")
+            return redirect(url_for("cotizacion_detalle", id_cotizacion=id_cotizacion))
+        return redirect(enlace)
 
     # ---------- RF-11 / RF-12 PDF y WhatsApp ----------
     @app.route("/cotizaciones/<int:id_cotizacion>/pdf")
@@ -490,8 +536,18 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno", carpeta_p
     return app
 
 
+def iniciar_sincronizacion_automatica(app):
+    """Hilo que sincroniza SYSCOM una vez al día mientras la app está abierta (RF-09)."""
+    programador = sincronizador_precios_syscom.ProgramadorSincronizacion(
+        lambda: almacenamiento_datos.abrir_conexion(app.config["RUTA_BD"]), lambda: app.config["CLIENTE_SYSCOM"])
+    programador.iniciar()
+    return programador
+
+
 if __name__ == "__main__":
-    crear_app().run(
+    aplicacion = crear_app()
+    iniciar_sincronizacion_automatica(aplicacion)
+    aplicacion.run(
         host=os.environ.get("PRESUPACL_HOST", "127.0.0.1"),
         port=int(os.environ.get("PRESUPACL_PORT", "8000")),
         debug=False,

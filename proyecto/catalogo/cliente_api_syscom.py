@@ -120,6 +120,10 @@ class ClienteApiSyscom:
                 raise ErrorApiSyscom("SYSCOM no entregó un token de acceso.", "respuesta_invalida")
         return self._token
 
+    def verificar(self):
+        """Comprueba que la API responde (obtiene el token de acceso)."""
+        self._obtener_token()
+
     def buscar_productos(self, texto="", categoria="", marca=""):
         parametros = {k: v for k, v in (("busqueda", texto), ("categoria", categoria), ("marca", marca)) if v}
         respuesta = self._pedir("GET", "/api/v1/productos?" + urllib.parse.urlencode(parametros))
@@ -147,6 +151,9 @@ class ClienteSyscomSimulado:
         self.llamadas += 1
         if self.falla:
             raise ErrorApiSyscom(f"Falla simulada de SYSCOM ({self.falla}).", self.falla)
+
+    def verificar(self):
+        self._revisar()
 
     def buscar_productos(self, texto="", categoria="", marca=""):
         self._revisar()

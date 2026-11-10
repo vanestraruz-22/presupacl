@@ -14,7 +14,9 @@ def cot(entorno, tmp_path):
     app.config["CARPETA_PDF"] = tmp_path / "pdf"
     con = ad.abrir_conexion(entorno["ruta"])
     id_mo = conceptos_manuales.registrar_concepto(con, "mano_obra", "Instalación", "servicio", "500")
-    id_cot, folio = cotizaciones_creacion.crear_cotizacion(con, entorno["id_cliente"], [{"id_concepto": id_mo, "cantidad": "2"}])
+    direccion = ad.obtener_cliente(con, entorno["id_cliente"])["direcciones"][0]["id_direccion"]
+    id_cot, folio = cotizaciones_creacion.crear_cotizacion(con, entorno["id_cliente"], [{"id_concepto": id_mo, "cantidad": "2"}],
+                                                           direccion)  # aceptar exige dirección (RF-16)
     con.close()
     return {"id": id_cot, "folio": folio, "id_mo": id_mo, **entorno}
 

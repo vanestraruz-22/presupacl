@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 from fpdf import FPDF
+from PIL import Image
 
 from proyecto.cotizaciones.calculadora_cotizacion import formato_cantidad, formato_moneda
 from proyecto.cotizaciones.cotizaciones_creacion import TIPOS
@@ -75,8 +76,14 @@ def construir_pdf(cotizacion):
     x_texto = 15
     if logo and Path(logo).is_file():
         try:
-            pdf.image(logo, x=15, y=12, h=22)
-            x_texto = 60
+            with Image.open(logo) as imagen:
+                proporcion = imagen.width / imagen.height
+            alto = 22
+            ancho = alto * proporcion
+            if ancho > 45:  # logos anchos: se reducen para no encimarse con el nombre
+                ancho, alto = 45, 45 / proporcion
+            pdf.image(logo, x=15, y=12, w=ancho, h=alto)
+            x_texto = 15 + ancho + 5
         except Exception:  # logo dañado: el documento sigue sin logo
             x_texto = 15
     pdf.set_xy(x_texto, 13)
@@ -87,14 +94,14 @@ def construir_pdf(cotizacion):
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(60)
     pdf.cell(0, 5, _t(f"Tel. {c['acl_telefono_snapshot']} · {c['acl_correo_snapshot']}"), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_y(38)
+    pdf.set_y(max(38, pdf.get_y() + 4))
 
     pdf.set_text_color(0)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 7, _t(f"Cotización {c['folio']}"), new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 9)
-    pdf.cell(0, 5, _t(f"Fecha: {c['creada_en'][:10]}    Vigente hasta: {c['vigencia_hasta']}    "
-                      f"Estatus: {c['estatus']}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5, _t(f"Fecha: {c['creada_en'][:10]}    Vigente hasta: {c['vigencia_hasta']}"),
+             new_x="LMARGIN", new_y="NEXT")
     pdf.ln(2)
 
     # Cliente
