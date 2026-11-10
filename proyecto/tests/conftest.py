@@ -55,3 +55,15 @@ def conceptos(bd):
         "categoria": "Videovigilancia", "precio_unitario_centavos": 85000, "moneda": "MXN", "existencia": 5,
     }])["DEMO-001"]
     return ids
+
+
+@pytest.fixture
+def cotizacion(bd_config, cliente, conceptos):
+    """Cotización pendiente con un producto SYSCOM y mano de obra, en la segunda dirección."""
+    from proyecto.cotizaciones import cotizaciones_creacion
+    id_cot, _ = cotizaciones_creacion.crear_cotizacion(
+        bd_config, cliente["id_cliente"],
+        [{"id_concepto": conceptos["SYSCOM"], "cantidad": "2"}, {"id_concepto": conceptos["mano_obra"], "cantidad": "1"}],
+        cliente["direcciones"][1]["id_direccion"],
+    )
+    return ad.obtener_cotizacion(bd_config, id_cot)

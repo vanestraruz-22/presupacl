@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block titulo %}Editar {{ c.folio }}{% endblock %}
+{% block contenido %}
+<h1>Editar {{ c.folio }} · {{ c.cliente_nombre_snapshot }}</h1>
+<p class="nota">Solo las cotizaciones pendientes se pueden editar. Al guardar se recalcula el total y se regenera el PDF.</p>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" class="tarjeta">
+  <input type="hidden" name="_token" value="{{ token }}">
+  <label for="id_direccion">Dirección de instalación</label>
+  <select id="id_direccion" name="id_direccion">
+    {% for d in cliente.direcciones %}<option value="{{ d.id_direccion }}" {% if d.id_direccion == c.id_direccion %}selected{% endif %}>{{ d.direccion }}</option>{% endfor %}
+  </select>
+  <div class="tabla-scroll">
+  <table class="tabla-captura" style="margin-top:12px">
+    <thead><tr><th>Concepto</th><th>Cantidad</th><th>Precio unitario</th><th>Quitar</th></tr></thead>
+    <tbody>
+    {% for r in renglones %}
+      {% set d = descripciones.get(r.id_concepto) %}
+      <tr><td>{{ d.descripcion if d else 'Concepto ' ~ r.id_concepto }}<input type="hidden" name="id_concepto" value="{{ r.id_concepto }}"></td>
+        <td><input type="text" name="cantidad" value="{{ r.cantidad }}" aria-label="Cantidad renglón {{ loop.index }}"></td>
+        <td><input type="text" name="precio" value="{{ r.precio or '' }}" aria-label="Precio renglón {{ loop.index }}"></td>
+        <td><input type="checkbox" name="quitar" value="{{ loop.index0 }}" aria-label="Quitar renglón {{ loop.index }}"></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <label for="nuevo_concepto">Agregar concepto</label>
+  <div class="acciones">
+    <select id="nuevo_concepto" name="nuevo_concepto" style="max-width:520px">
+      <option value="">(ninguno)</option>
+      {% for k in conceptos %}<option value="{{ k.id_concepto }}">{{ TIPOS[k.tipo] }} · {{ k.descripcion }} · {{ k.precio_unitario_centavos|moneda(k.moneda) }}</option>{% endfor %}
+    </select>
+    <input type="text" name="nueva_cantidad" value="1" style="width:6em" aria-label="Cantidad del concepto nuevo">
+  </div>
+  <div class="acciones">
+    <button class="secundario" type="submit" name="accion" value="aplicar" style="margin-top:12px">Aplicar sin guardar</button>
+    <button class="primario" type="submit" name="accion" value="guardar">Guardar cambios</button>
+    <a href="{{ url_for('cotizacion_detalle', id_cotizacion=c.id_cotizacion) }}" style="margin-top:12px">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

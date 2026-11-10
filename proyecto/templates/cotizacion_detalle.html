@@ -2,7 +2,24 @@
 {% block titulo %}{{ c.folio }}{% endblock %}
 {% block contenido %}
 <h1>{{ c.folio }} <span class="estatus {{ c.estatus }}">{{ c.estatus }}</span></h1>
-{% block acciones %}{% endblock %}
+{% if alertas %}<p class="alerta" role="status">Esta cotización se duplicó con precios vigentes. Revise los conceptos señalados antes de enviarla.</p>{% endif %}
+<div class="tarjeta acciones">
+  <a class="boton" style="margin-top:0" href="{{ url_for('cotizacion_pdf', id_cotizacion=c.id_cotizacion) }}" target="_blank">Ver PDF</a>
+  <a class="boton" style="margin-top:0" href="{{ url_for('cotizacion_pdf', id_cotizacion=c.id_cotizacion, descargar=1) }}">Descargar PDF</a>
+  <a class="boton" style="margin-top:0" href="{{ url_for('cotizacion_whatsapp', id_cotizacion=c.id_cotizacion) }}" target="_blank">Enviar por WhatsApp</a>
+  {% if editable %}
+  <a class="boton" style="margin-top:0" href="{{ url_for('cotizacion_editar', id_cotizacion=c.id_cotizacion) }}">Editar</a>
+  <form method="post" action="{{ url_for('cotizacion_estatus', id_cotizacion=c.id_cotizacion) }}" class="acciones">
+    <input type="hidden" name="_token" value="{{ token }}">
+    <button class="secundario" type="submit" name="estatus" value="aceptada">Marcar aceptada</button>
+    <button class="secundario" type="submit" name="estatus" value="rechazada">Marcar rechazada</button>
+  </form>
+  {% else %}
+  <a class="boton" style="margin-top:0" href="{{ url_for('cotizacion_duplicar', id_cotizacion=c.id_cotizacion) }}">Duplicar</a>
+  <span class="nota">Cotización {{ c.estatus }}: ya no se modifica; para cambios, duplíquela.</span>
+  {% endif %}
+</div>
+<p class="nota">WhatsApp abre un mensaje con el resumen para que usted lo revise y lo envíe; después adjunte el PDF descargado.</p>
 <div class="tarjeta">
   <p><b>Cliente:</b> {{ c.cliente_nombre_snapshot }} · {{ c.cliente_telefono_snapshot }}<br>
   <b>Dirección:</b> {{ c.direccion_snapshot or 'Sin dirección elegida' }}<br>

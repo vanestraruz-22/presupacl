@@ -6,6 +6,19 @@ Equipo **SofChi**: Sofía Quesada y Vanesa Estrada · Desarrollo de Aplicaciones
 
 ## Estado
 
+**Incremento 4 en la rama `incremento-4` (v0.4.0, entrega 19-nov-2026):** RF-11 PDF, RF-12 WhatsApp, RF-13 estatus, RF-14 edición y RF-15 duplicado. También cierra CA-36 y CA-64 de RF-21 dentro del PDF.
+
+| Tarea | RF | Módulo | Estado |
+|---|---|---|---|
+| T-20 PDF de la cotización | RF-11, RF-21 | generador_pdf_cotizacion | Terminada (CA-20, CA-21, CA-51, CA-36, CA-64) |
+| T-21 Enlace de WhatsApp | RF-12 | mensajeria_whatsapp | Terminada (CA-22, CA-23, CA-52 en pantalla) |
+| T-22 Cambio de estatus | RF-13 | cotizaciones_estado | Terminada (CA-24, CA-53, CA-54) |
+| T-23 Edición solo en pendiente | RF-14 | cotizaciones_edicion | Terminada (CA-26, CA-55, CA-56, CA-27) |
+| T-24 Duplicar cerrada | RF-15 | cotizaciones_duplicado | Terminada (CA-27.1, CA-57, CA-67, CA-66) |
+| T-25 Pantallas | RF-11 a RF-15 | main.py, templates/ | Terminada |
+
+SUPUESTOS del incremento 4: fpdf2 para el PDF (D09); una cotización aceptada o rechazada no se reabre (D04); cambio de precio "significativo" mayor al 10 % (D03); teléfonos de México con clave 52.
+
 **Incremento 3 en la rama `incremento-3` (v0.3.0, entrega 17-nov-2026):** RF-05 catálogo SYSCOM, RF-06 conceptos manuales, RF-07 crear cotización, RF-08 cálculo y RF-20 validación.
 
 | Tarea | RF | Módulo | Estado |
@@ -86,7 +99,9 @@ proyecto/
   catalogo/          cliente_api_syscom.py (único acceso a SYSCOM), catalogo_syscom.py
   clientes/          clientes_registro.py (registrar y editar), clientes_busqueda.py
   conceptos/         conceptos_manuales.py
-  cotizaciones/      calculadora_cotizacion.py, validador_cotizacion.py, cotizaciones_creacion.py
+  comunicacion/      mensajeria_whatsapp.py (enlaces para envío manual)
+  cotizaciones/      calculadora, validador, creacion, estado, edicion y duplicado
+  documentos/        generador_pdf_cotizacion.py
   config/            settings.py (configuración de ACL)
   infraestructura/   almacenamiento_datos.py (único módulo que accede a la BD)
   templates/         pantallas HTML de la aplicación web
@@ -95,6 +110,7 @@ proyecto/
   demo_rf02.py       demostración por consola del incremento 1
 docs/                especificación y planes aprobados
 data/                presupacl.db (se crea al ejecutar; no se sube al repositorio)
+salidas/cotizaciones/ PDF generados (no se suben al repositorio)
 recursos/logo_acl/   logo de ACL subido desde Configuración (no se sube al repositorio)
 ```
 
