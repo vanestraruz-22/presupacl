@@ -2,18 +2,9 @@
 {% block titulo %}Catálogo de productos{% endblock %}
 {% block contenido %}
 <h1>Catálogo de productos</h1>
-{% if catalogo_local %}
-<p class="nota">Los productos vienen del archivo local <b>catalogo_local.csv</b> (sin conexión a la API de SYSCOM).
-En el archivo los precios van en MXN <b>con IVA</b> (D02); aquí se muestran sin IVA porque el IVA se suma una sola vez
-al total de la cotización. Son precios de referencia: revíselos y actualícelos con la lista vigente de ACL.</p>
-{% endif %}
 <form method="get" class="tarjeta">
-  <label for="texto">Palabra clave</label>
+  <label for="texto">Palabra clave (producto, marca, categoría o clave)</label>
   <input type="text" id="texto" name="texto" value="{{ filtros.texto }}" autofocus>
-  <label for="categoria">Categoría</label>
-  <input type="text" id="categoria" name="categoria" value="{{ filtros.categoria }}">
-  <label for="marca">Marca</label>
-  <input type="text" id="marca" name="marca" value="{{ filtros.marca }}">
   <button class="primario" type="submit">Buscar</button>
   <a class="boton" href="{{ url_for('catalogo', todos=1) }}">Ver todo el catálogo</a>
 </form>

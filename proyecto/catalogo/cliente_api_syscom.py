@@ -295,7 +295,7 @@ class ClienteCatalogoLocal:
             return not filtro or filtro.lower() in str(valor or "").lower()
 
         return [dict(p) for p in self._productos().values()
-                if (coincide(p["titulo"], texto) or coincide(p["producto_id"], texto))
+                if any(coincide(p[c], texto) for c in ("titulo", "producto_id", "marca", "categoria"))
                 and coincide(p["categoria"], categoria) and coincide(p["marca"], marca)]
 
     def obtener_producto(self, syscom_id):
