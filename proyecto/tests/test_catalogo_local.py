@@ -14,9 +14,9 @@ from proyecto.tests.test_web_cotizaciones import html, token
 
 CSV = (
     "clave,descripcion,marca,categoria,unidad,precio,existencia\n"
-    "CAM-1,Cámara bala 2 MP,Hikvision,Videovigilancia,pieza,389.00,40\n"
-    "DVR-1,Grabador DVR 8 canales,Hikvision,Videovigilancia,pieza,\"$1,390.00\",0\n"
-    "ALA-1,Sensor PIR,DSC,Alarmas,pieza,215,\n"
+    "CAM-1,Cámara bala 2 MP,Hikvision,Videovigilancia,pieza,464.00,40\n"
+    "DVR-1,Grabador DVR 8 canales,Hikvision,Videovigilancia,pieza,\"$1,624.00\",0\n"
+    "ALA-1,Sensor PIR,DSC,Alarmas,pieza,232,\n"
 )
 
 
@@ -38,10 +38,15 @@ def test_busqueda_local_guarda_productos_y_precio(bd, archivo):
     r = catalogo_syscom.buscar_productos(bd, cliente, texto="grabador")
     assert r["fuente"] == "syscom" and r["aviso"] is None
     (dvr,) = r["resultados"]
-    assert (dvr["syscom_id"], dvr["precio_unitario_centavos"], dvr["existencia"]) == ("DVR-1", 139000, 0)
+    assert (dvr["syscom_id"], dvr["precio_unitario_centavos"], dvr["existencia"]) == ("DVR-1", 140000, 0)  # D02: 1,624.00 con IVA = 1,400.00 sin IVA
     todos = catalogo_syscom.buscar_productos(bd, cliente, todos=True)["resultados"]
     assert sorted(p["syscom_id"] for p in todos) == ["ALA-1", "CAM-1", "DVR-1"]
     assert next(p for p in todos if p["syscom_id"] == "ALA-1")["existencia"] is None
+
+
+def test_D02_precio_con_iva_se_guarda_sin_iva():
+    assert api.quitar_iva("1,160.00") == "1000.00" and api.quitar_iva("1") == "0.86"
+    assert api.quitar_iva("abc") == "abc"  # el error lo reporta la validación con su fila
 
 
 def test_sin_filtros_ni_todos_es_error(bd, archivo):
@@ -52,11 +57,11 @@ def test_sin_filtros_ni_todos_es_error(bd, archivo):
 def test_sincronizar_toma_precio_nuevo_del_csv(bd, archivo):
     cliente = api.ClienteCatalogoLocal(str(archivo))
     catalogo_syscom.buscar_productos(bd, cliente, todos=True)
-    archivo.write_text(CSV.replace("389.00", "420.00").replace("ALA-1,", "ALA-9,"), encoding="utf-8")
+    archivo.write_text(CSV.replace("464.00", "522.00").replace("ALA-1,", "ALA-9,"), encoding="utf-8")
     r = sinc.sincronizar(bd, cliente)
     assert r["resultado"] == "exitosa" and "ALA-1" in r["detalle"]
     (cam,) = ad.buscar_conceptos(bd, origen="syscom", texto="bala")
-    assert cam["precio_unitario_centavos"] == 42000
+    assert cam["precio_unitario_centavos"] == 45000
 
 
 def test_archivo_faltante_conserva_datos_y_avisa(bd, archivo):
@@ -69,9 +74,9 @@ def test_archivo_faltante_conserva_datos_y_avisa(bd, archivo):
 
 
 def test_punto_y_coma_de_excel():
-    texto = "﻿clave;descripcion;precio\nX-1;Cable UTP;2290,00\n".replace("2290,00", "2290.00")
+    texto = "﻿clave;descripcion;precio\nX-1;Cable UTP;2320.00\n"
     (p,) = api.leer_csv_catalogo(texto)
-    assert api.normalizar_producto(p)["precio_unitario_centavos"] == 229000
+    assert api.normalizar_producto(p)["precio_unitario_centavos"] == 200000
 
 
 @pytest.mark.parametrize("texto, mensaje", [
@@ -126,11 +131,11 @@ def test_pagina_catalogo_local_ver_todo_y_descargar(web):
 def test_importar_csv_valido_actualiza_precios(web):
     http, t = web["http"], web["token"]
     http.get("/catalogo?todos=1")
-    nuevo = CSV.replace("389.00", "450.00").encode("utf-8")
+    nuevo = CSV.replace("464.00", "580.00").encode("utf-8")
     r = http.post("/catalogo/importar", data={"_token": t, "archivo": (io.BytesIO(nuevo), "nuevo.csv")},
                   content_type="multipart/form-data", follow_redirects=True)
     pagina = html(r)
-    assert "Catálogo importado con 3 producto(s)" in pagina and "$450.00" in pagina
+    assert "Catálogo importado con 3 producto(s)" in pagina and "$500.00" in pagina
 
 
 def test_importar_csv_invalido_no_cambia_nada(web):

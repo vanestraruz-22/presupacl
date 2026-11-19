@@ -51,11 +51,13 @@ def test_CA67_senala_cambios_significativos_y_agotados(bd_config, cotizacion, co
     ad.guardar_productos_syscom(bd_config, [{"syscom_id": "DEMO-001", "descripcion": "Cámara de prueba", "unidad": "pieza",
                                              "precio_unitario_centavos": 100000, "moneda": "MXN", "existencia": 0}])
     conceptos_manuales.modificar_concepto(bd_config, conceptos["mano_obra"], "mano_obra", "Concepto mano_obra",
-                                          "servicio", "525")  # +5 %: no se señala
+                                          "servicio", "525")  # +5 %: D03 sin umbral, también se señala
     id_nueva, _ = dup.duplicar(bd_config, cotizacion["id_cotizacion"])
     alertas = dup.conceptos_por_revisar(bd_config, ad.obtener_cotizacion(bd_config, id_nueva))
-    assert set(alertas) == {conceptos["SYSCOM"]}
+    assert set(alertas) == {conceptos["SYSCOM"], conceptos["mano_obra"]}
     assert "sin existencia" in alertas[conceptos["SYSCOM"]] and "+17.6 %" in alertas[conceptos["SYSCOM"]]
+    assert "+5.0 %" in alertas[conceptos["mano_obra"]]
+    assert all(conceptos[t] not in alertas for t in ("manual", "insumos"))  # sin cambio de precio: no se señala
 
 
 def test_CA66_origen_inexistente_no_crea_copia(bd_config):

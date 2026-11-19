@@ -4,7 +4,8 @@
 <h1>Catálogo de productos</h1>
 {% if catalogo_local %}
 <p class="nota">Los productos vienen del archivo local <b>catalogo_local.csv</b> (sin conexión a la API de SYSCOM).
-Los precios son de referencia en MXN sin IVA: revíselos y actualícelos con la lista vigente de ACL.</p>
+En el archivo los precios van en MXN <b>con IVA</b> (D02); aquí se muestran sin IVA porque el IVA se suma una sola vez
+al total de la cotización. Son precios de referencia: revíselos y actualícelos con la lista vigente de ACL.</p>
 {% endif %}
 <form method="get" class="tarjeta">
   <label for="texto">Palabra clave</label>
@@ -22,7 +23,7 @@ Los precios son de referencia en MXN sin IVA: revíselos y actualícelos con la 
   {% if respuesta.resultados %}
   <div class="tabla-scroll">
   <table>
-    <thead><tr><th>Producto</th><th>Marca</th><th>Categoría</th><th class="num">Precio</th><th class="num">Existencia</th><th>Actualizado</th><th></th></tr></thead>
+    <thead><tr><th>Producto</th><th>Marca</th><th>Categoría</th><th class="num">Precio{% if catalogo_local %} sin IVA{% endif %}</th><th class="num">Existencia</th><th>Actualizado</th><th></th></tr></thead>
     <tbody>
     {% for p in respuesta.resultados %}
       <tr><td>{{ p.descripcion }}</td><td>{{ p.marca or '' }}</td><td>{{ p.categoria or '' }}</td>
@@ -46,7 +47,7 @@ Los precios son de referencia en MXN sin IVA: revíselos y actualícelos con la 
 <div class="tarjeta">
   <h2>Actualizar el catálogo</h2>
   <p>1. Descargue el archivo actual, ábralo en Excel y cambie precios, existencias o agregue productos.
-  Columnas: <code>clave, descripcion, marca, categoria, unidad, precio, existencia</code>.
+  Columnas: <code>clave, descripcion, marca, categoria, unidad, precio, existencia</code> (precio con IVA).
   La clave no se repite; precio y descripción son obligatorios.</p>
   <p><a class="boton" href="{{ url_for('catalogo_archivo') }}">Descargar catálogo (CSV)</a></p>
   <p>2. Guárdelo como CSV y súbalo aquí. Si alguna fila tiene un error, no se cambia nada y se indica la fila.

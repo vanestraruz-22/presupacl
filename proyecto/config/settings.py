@@ -4,9 +4,10 @@ comerciales por defecto (RF-21, HU-18).
 Se capturan una sola vez y se copian a cada cotización nueva (snapshots), por
 eso cambiarlos después no altera cotizaciones ya emitidas.
 
-SUPUESTOS — validar con ACL (D02, D03, D05):
-- IVA por defecto 0.16; utilidad por defecto 0.20; método "recargo"
-  (la utilidad se suma sobre el subtotal). Son valores editables.
+DECIDIDO por el equipo el 19-nov-2026 (D01): la utilidad es MARGEN sobre el
+precio de venta. Método por defecto "margen"; "recargo" sigue disponible.
+SUPUESTOS — validar con ACL: IVA por defecto 0.16; utilidad por defecto 0.20.
+Son valores editables.
 - Vigencia por defecto 15 días.
 """
 
@@ -28,7 +29,7 @@ VALORES_INICIALES = {
     "vigencia_dias_default": 15,
     "iva_tasa_default": "0.16",
     "utilidad_tasa_default": "0.20",
-    "metodo_utilidad": "recargo",
+    "metodo_utilidad": "margen",  # D01 decidido el 19-nov-2026
 }
 
 MENSAJE_FALLA = "No se pudo guardar la configuración. Los cambios NO se guardaron."

@@ -100,3 +100,10 @@ def test_guardar_logo_conserva_copias_y_valida_extension(tmp_path):
     assert ruta1 != ruta2 and len(list(tmp_path.iterdir())) == 2
     with pytest.raises(settings.ErrorConfiguracion):
         settings.guardar_logo(b"x", "logo.exe", tmp_path)
+
+
+def test_D01_utilidad_por_defecto_es_margen():
+    from proyecto.cotizaciones import calculadora_cotizacion as calc
+    assert settings.VALORES_INICIALES["metodo_utilidad"] == "margen"
+    r = calc.calcular([{"cantidad_milesimas": 1000, "precio_unitario_centavos": 80000}], "margen", "0.20", "0.16")
+    assert (r["utilidad_centavos"], r["iva_centavos"], r["total_centavos"]) == (20000, 16000, 116000)
