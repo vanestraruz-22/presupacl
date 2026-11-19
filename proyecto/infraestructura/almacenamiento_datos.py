@@ -202,6 +202,15 @@ def crear_cliente_con_direcciones(conexion, nombre, telefono, direcciones):
     return id_cliente
 
 
+def listar_telefonos_clientes(conexion):
+    """[(id_cliente, telefono)] de todos los clientes, para revisar teléfonos repetidos (D07)."""
+    try:
+        return [(f["id_cliente"], f["telefono"]) for f in
+                conexion.execute("SELECT id_cliente, telefono FROM clientes ORDER BY id_cliente").fetchall()]
+    except sqlite3.Error as error:
+        raise ErrorAlmacenamiento("No se pudo consultar los clientes.") from error
+
+
 def obtener_cliente(conexion, id_cliente):
     """Consulta un cliente con sus direcciones. Regresa None si no existe."""
     fila = conexion.execute(

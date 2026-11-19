@@ -4,8 +4,8 @@ La orden lleva cliente, dirección elegida y conceptos de instalación, SIN
 precios, utilidad, IVA ni total. Se crea junto con el cambio a "aceptada" en
 una sola transacción; si falta la dirección no se acepta ni se crea nada.
 
-D05 (decidido por el equipo el 19-nov-2026): la orden del técnico lleva todos
-los tipos de concepto menos viáticos (el cargo por domingo o día festivo sí va).
+D05 (decidido por el equipo el 19-nov-2026): la orden del técnico lleva TODOS
+los conceptos de la cotización, pero sin ningún precio.
 """
 
 import json
@@ -16,7 +16,7 @@ from proyecto.cotizaciones.validador_cotizacion import ErrorCotizacion
 from proyecto.infraestructura import almacenamiento_datos
 
 TIPOS_INSTALACION = ("SYSCOM", "manual", "insumos", "equipo_seguridad", "programacion", "mano_obra",
-                     "dia_festivo")
+                     "dia_festivo", "viaticos")  # D05: todos
 
 
 def preparar_orden(cotizacion):

@@ -11,9 +11,13 @@ Contrato acordado en T-02 (plan de implementación v1.2):
     editar_cliente(conexion, id_cliente, nombre, telefono,
                    direcciones_editadas, direcciones_nuevas)   (incremento 2)
 
-Supuesto de D07 (por validar con ACL): nombre, teléfono y direcciones se
-recortan de espacios; un valor vacío o solo con espacios cuenta como faltante.
-El teléfono se guarda como texto, sin formato obligatorio ni unicidad.
+D07 (decidido por el equipo el 19-nov-2026): NO se permiten teléfonos
+repetidos entre clientes. Se comparan solo los dígitos, así "477 123 4567" y
+"477-123-4567" cuentan como el mismo; con 12 dígitos que empiezan con 52 (lada
+de México) se comparan los últimos 10.
+SUPUESTO: nombre, teléfono y direcciones se recortan de espacios; un valor
+vacío o solo con espacios cuenta como faltante. Los límites de textos siguen
+por validar.
 """
 
 from proyecto.infraestructura import almacenamiento_datos
@@ -49,6 +53,23 @@ def validar_cliente(nombre, telefono, direcciones):
     return faltantes
 
 
+def _digitos(telefono):
+    digitos = "".join(c for c in str(telefono or "") if c.isdigit())
+    return digitos[2:] if len(digitos) == 12 and digitos.startswith("52") else digitos
+
+
+def revisar_telefono_unico(conexion, telefono, id_cliente=None):
+    """Lanza ErrorValidacion si otro cliente ya tiene ese teléfono (D07)."""
+    buscado = _digitos(telefono)
+    if not buscado:
+        return
+    for otro_id, otro_telefono in almacenamiento_datos.listar_telefonos_clientes(conexion):
+        if otro_id != id_cliente and _digitos(otro_telefono) == buscado:
+            otro = almacenamiento_datos.obtener_cliente(conexion, otro_id)
+            raise ErrorValidacion(["telefono"], f"El teléfono {_limpiar(telefono)} ya está registrado con el "
+                                  f"cliente {otro['nombre']}. No se guardó; búsquelo en Clientes.")
+
+
 def registrar_cliente(conexion, nombre, telefono, direcciones):
     """Valida los datos y guarda el cliente con sus direcciones (RF-02).
 
@@ -58,6 +79,7 @@ def registrar_cliente(conexion, nombre, telefono, direcciones):
     faltantes = validar_cliente(nombre, telefono, direcciones)
     if faltantes:
         raise ErrorValidacion(faltantes)
+    revisar_telefono_unico(conexion, telefono)
 
     return almacenamiento_datos.crear_cliente_con_direcciones(
         conexion,
@@ -90,6 +112,8 @@ def editar_cliente(conexion, id_cliente, nombre, telefono, direcciones_editadas=
                               + ". No se guardaron los cambios.")
     if any(not _limpiar(d) for d in direcciones_editadas.values()):
         raise ErrorValidacion(["direcciones"], "Una dirección no puede quedar en blanco. No se guardaron los cambios.")
+    if almacenamiento_datos.obtener_cliente(conexion, int(id_cliente)) is not None:  # si no existe: CA-08
+        revisar_telefono_unico(conexion, telefono, int(id_cliente))
 
     almacenamiento_datos.actualizar_cliente(
         conexion,

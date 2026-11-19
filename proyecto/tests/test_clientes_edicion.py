@@ -82,3 +82,22 @@ def test_editar_sin_nombre_o_telefono_no_guarda(conexion, cliente, nombre, telef
         cr.editar_cliente(conexion, cliente["id_cliente"], nombre, telefono)
     assert "No se guardaron los cambios" in str(error.value)
     assert ad.obtener_cliente(conexion, cliente["id_cliente"])["nombre"] == "Cliente de prueba"
+
+
+# ---------- D07 (equipo, 19-nov-2026): no se permiten teléfonos repetidos ----------
+
+@pytest.mark.parametrize("telefono", ["4770000000", "477 000 0000", "477-000-0000", "+52 477 000 0000"])
+def test_D07_registrar_telefono_repetido_se_rechaza(conexion, cliente, telefono):
+    with pytest.raises(cr.ErrorValidacion) as error:
+        cr.registrar_cliente(conexion, "Otro", telefono, ["Calle 9"])
+    assert error.value.campos_faltantes == ["telefono"] and "ya está registrado" in str(error.value)
+    assert contar(conexion, "clientes") == 1
+
+
+def test_D07_editar_con_telefono_de_otro_se_rechaza_y_el_propio_si(conexion, cliente):
+    otro = cr.registrar_cliente(conexion, "Otro cliente", "4772222222", ["Calle Ajena 5"])
+    with pytest.raises(cr.ErrorValidacion):
+        cr.editar_cliente(conexion, otro, "Otro cliente", "477 000 0000")
+    assert ad.obtener_cliente(conexion, otro)["telefono"] == "4772222222"
+    cr.editar_cliente(conexion, otro, "Otro cliente renombrado", "4772222222")  # su mismo teléfono: válido
+    assert ad.obtener_cliente(conexion, otro)["nombre"] == "Otro cliente renombrado"
