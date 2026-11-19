@@ -123,7 +123,9 @@ def web(tmp_path, archivo):
 def test_pagina_catalogo_local_ver_todo_y_descargar(web):
     http = web["http"]
     pagina = html(http.get("/catalogo?todos=1"))
-    assert "catalogo_local.csv" in pagina and "Sensor PIR" in pagina and "Grabador DVR" in pagina
+    assert "Sensor PIR" in pagina and "Grabador DVR" in pagina
+    assert 'name="marca"' not in pagina and 'name="categoria"' not in pagina  # solo palabra clave
+    assert "Sensor PIR" in html(http.get("/catalogo?texto=dsc"))  # la palabra clave también busca por marca
     r = http.get("/catalogo/archivo")
     assert r.status_code == 200 and "CAM-1" in r.get_data(as_text=True)
 
