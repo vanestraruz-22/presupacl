@@ -399,6 +399,8 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno", carpeta_p
         return render_template(
             "borrador.html", borrador=borrador, cliente=cliente, partidas=partidas, resultado=resultado,
             error=error or error_previa, conceptos=conceptos_lista,
+            precios_catalogo={i: c["precio_unitario_centavos"] for i, c in almacenamiento_datos.obtener_conceptos(
+                bd(), [r["id_concepto"] for r in borrador["renglones"]]).items()},
             config=settings.obtener_configuracion(bd()), config_completa=settings.configuracion_completa(bd()),
         ), (400 if error else 200)
 
