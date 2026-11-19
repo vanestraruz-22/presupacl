@@ -92,7 +92,9 @@ def test_normalizar_formato_documentado():
 def test_cliente_configurado_por_entorno(monkeypatch):
     monkeypatch.delenv("SYSCOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("PRESUPACL_SYSCOM", raising=False)
-    assert api.obtener_cliente_configurado() is None
+    monkeypatch.delenv("PRESUPACL_CATALOGO", raising=False)
+    local = api.obtener_cliente_configurado()  # sin API: catálogo local (T-34)
+    assert isinstance(local, api.ClienteCatalogoLocal) and local.ruta == api.RUTA_CATALOGO_LOCAL
     monkeypatch.setenv("PRESUPACL_SYSCOM", "demo")
     assert isinstance(api.obtener_cliente_configurado(), api.ClienteSyscomSimulado)
     monkeypatch.delenv("PRESUPACL_SYSCOM")

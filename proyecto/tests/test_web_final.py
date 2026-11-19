@@ -52,7 +52,7 @@ def test_sincronizar_desde_panel(cot):
     http, t = cot["http"], cot["token"]
     http.get("/catalogo?texto=cámara")
     http.post("/sincronizar", data={"_token": t})
-    assert "Precios de SYSCOM actualizados" in html(http.get("/"))
+    assert "Precios del catálogo actualizados" in html(http.get("/"))
     cot["simulado"].falla = "limite"
     http.post("/sincronizar", data={"_token": t})
     pagina = html(http.get("/"))

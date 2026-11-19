@@ -8,6 +8,11 @@ Credenciales SOLO por variables de entorno (RNF-03), nunca en el código:
     SYSCOM_CLIENT_ID, SYSCOM_CLIENT_SECRET
 Modo de demostración sin API real:  PRESUPACL_SYSCOM=demo
 
+Catálogo local (T-34, decisión del equipo del 19-nov-2026: no se usará la API):
+si no hay credenciales, los productos se leen de un archivo CSV que ACL puede
+editar en Excel o reemplazar desde la página Catálogo. Ruta por defecto:
+proyecto/catalogo/catalogo_local.csv; se puede cambiar con PRESUPACL_CATALOGO.
+
 AVISO: ClienteApiSyscom sigue la documentación pública de SYSCOM (OAuth2
 client_credentials y /api/v1/productos), pero NO se ha probado contra la API
 real porque el equipo no tiene credenciales. Los nombres de campos de la
@@ -15,6 +20,8 @@ respuesta son SUPUESTO — validar con la API (D02, D06). Las pruebas usan
 ClienteSyscomSimulado.
 """
 
+import csv
+import io
 import json
 import os
 import urllib.error
@@ -189,12 +196,113 @@ PRODUCTOS_DEMO = [
 ]
 
 
+RUTA_CATALOGO_LOCAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogo_local.csv")
+COLUMNAS_CSV = ["clave", "descripcion", "marca", "categoria", "unidad", "precio", "existencia"]
+MAX_PRODUCTOS_CSV = 20_000
+
+
+def leer_csv_catalogo(texto):
+    """Valida el texto de un CSV de catálogo y regresa sus productos en formato de la API.
+
+    Acepta separador coma o punto y coma (Excel en español) y precios con "$" o
+    comas de miles. Lanza ErrorApiSyscom(tipo="respuesta_invalida") indicando la
+    fila con problemas; si hay un error no se acepta ninguna fila.
+    """
+    texto = texto.lstrip("\ufeff")
+    primera = texto.split("\n", 1)[0]
+    separador = ";" if primera.count(";") > primera.count(",") else ","
+    lector = csv.DictReader(io.StringIO(texto), delimiter=separador)
+    encabezados = [(c or "").strip().lower() for c in (lector.fieldnames or [])]
+    faltantes = [c for c in ("clave", "descripcion", "precio") if c not in encabezados]
+    if faltantes:
+        raise ErrorApiSyscom("El archivo no tiene las columnas obligatorias: " + ", ".join(faltantes)
+                             + f". Columnas esperadas: {', '.join(COLUMNAS_CSV)}.", "respuesta_invalida")
+    productos, claves = [], set()
+    for numero, fila in enumerate(lector, start=2):
+        fila = {(k or "").strip().lower(): (v or "").strip() for k, v in fila.items() if k}
+        if not any(fila.values()):
+            continue  # renglón vacío
+        crudo = {
+            "producto_id": fila.get("clave"), "titulo": fila.get("descripcion"),
+            "marca": fila.get("marca") or None, "categoria": fila.get("categoria") or None,
+            "unidad": fila.get("unidad") or "pieza",
+            "precio": fila.get("precio", "").replace("$", "").strip() or None,
+            "existencia": fila.get("existencia") or None,
+        }
+        try:
+            producto = normalizar_producto(crudo)
+        except ErrorApiSyscom as error:
+            raise ErrorApiSyscom(f"Fila {numero}: {error}", "respuesta_invalida") from None
+        if producto["syscom_id"] in claves:
+            raise ErrorApiSyscom(f"Fila {numero}: la clave {producto['syscom_id']} está repetida.",
+                                 "respuesta_invalida")
+        claves.add(producto["syscom_id"])
+        crudo["producto_id"] = producto["syscom_id"]
+        productos.append(crudo)
+        if len(productos) > MAX_PRODUCTOS_CSV:
+            raise ErrorApiSyscom(f"El archivo tiene más de {MAX_PRODUCTOS_CSV} productos.", "respuesta_invalida")
+    if not productos:
+        raise ErrorApiSyscom("El archivo no tiene productos.", "respuesta_invalida")
+    return productos
+
+
+class ClienteCatalogoLocal:
+    """Lee los productos de un archivo CSV local en lugar de la API (T-34).
+
+    Cumple la misma interfaz que ClienteApiSyscom, así la búsqueda (RF-05) y la
+    sincronización de precios (RF-09/RF-10) funcionan igual: al editar el
+    archivo y sincronizar, los precios del catálogo se actualizan.
+    """
+
+    es_local = True
+    descripcion = "archivo local de productos (catalogo_local.csv)"
+
+    def __init__(self, ruta=RUTA_CATALOGO_LOCAL):
+        self.ruta = ruta
+
+    def _productos(self):
+        try:
+            with open(self.ruta, encoding="utf-8-sig", newline="") as archivo:
+                texto = archivo.read()
+        except FileNotFoundError:
+            raise ErrorApiSyscom("No se encontró el archivo del catálogo local.") from None
+        except (OSError, UnicodeDecodeError):
+            raise ErrorApiSyscom("No se pudo leer el archivo del catálogo local.", "respuesta_invalida") from None
+        return {p["producto_id"]: p for p in leer_csv_catalogo(texto)}
+
+    def verificar(self):
+        self._productos()
+
+    def buscar_productos(self, texto="", categoria="", marca=""):
+        def coincide(valor, filtro):
+            return not filtro or filtro.lower() in str(valor or "").lower()
+
+        return [dict(p) for p in self._productos().values()
+                if (coincide(p["titulo"], texto) or coincide(p["producto_id"], texto))
+                and coincide(p["categoria"], categoria) and coincide(p["marca"], marca)]
+
+    def obtener_producto(self, syscom_id):
+        productos = self._productos()
+        if str(syscom_id) not in productos:
+            raise ErrorApiSyscom(f"Producto {syscom_id} no está en el catálogo local.", "no_encontrado")
+        return dict(productos[str(syscom_id)])
+
+    def reemplazar_archivo(self, texto):
+        """Valida y guarda un CSV nuevo. Regresa cuántos productos tiene."""
+        productos = leer_csv_catalogo(texto)
+        temporal = self.ruta + ".tmp"
+        with open(temporal, "w", encoding="utf-8", newline="") as archivo:
+            archivo.write(texto.lstrip("\ufeff"))
+        os.replace(temporal, self.ruta)
+        return len(productos)
+
+
 def obtener_cliente_configurado():
-    """Cliente según el entorno: demo, API real con credenciales, o None (sin API)."""
+    """Cliente según el entorno: demo, API real con credenciales o catálogo local (CSV)."""
     if os.environ.get("PRESUPACL_SYSCOM", "").lower() == "demo":
         return ClienteSyscomSimulado(PRODUCTOS_DEMO)
     client_id = os.environ.get("SYSCOM_CLIENT_ID")
     client_secret = os.environ.get("SYSCOM_CLIENT_SECRET")
     if client_id and client_secret:
         return ClienteApiSyscom(client_id, client_secret)
-    return None
+    return ClienteCatalogoLocal(os.environ.get("PRESUPACL_CATALOGO") or RUTA_CATALOGO_LOCAL)

@@ -18,11 +18,11 @@
 <div class="tarjeta">
   <h2>Cotizaciones</h2>
   <p>Para cotizar: busque al cliente, ábralo y presione <b>Nueva cotización</b>. Después agregue conceptos del
-  <a href="{{ url_for('catalogo') }}">catálogo SYSCOM</a> o de los <a href="{{ url_for('conceptos') }}">conceptos manuales</a>.</p>
+  <a href="{{ url_for('catalogo') }}">catálogo de productos</a> o de los <a href="{{ url_for('conceptos') }}">conceptos manuales</a>.</p>
   <a class="boton" href="{{ url_for('cotizaciones') }}">Ver cotizaciones</a>
 </div>
 <div class="tarjeta">
-  <h2>Precios de SYSCOM</h2>
+  <h2>Precios del catálogo</h2>
   <p>Última actualización exitosa:
     <b>{{ sincronizacion.ultima_exitosa[:16]|replace('T', ' ') if sincronizacion.ultima_exitosa else 'nunca' }}</b>.
     Se actualizan solos una vez al día mientras PresupACL está abierto.</p>

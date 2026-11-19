@@ -1,0 +1,43 @@
+clave,descripcion,marca,categoria,unidad,precio,existencia
+CAM-001,Cámara bala 2 MP Turbo HD exterior lente 2.8 mm IR 20 m,Hikvision,Videovigilancia,pieza,389.00,40
+CAM-002,Cámara domo 2 MP Turbo HD interior lente 2.8 mm IR 20 m,Hikvision,Videovigilancia,pieza,365.00,35
+CAM-003,Cámara bala 5 MP Turbo HD exterior lente 2.8 mm IR 30 m,Hikvision,Videovigilancia,pieza,599.00,20
+CAM-004,Cámara bala 2 MP HDCVI exterior lente 3.6 mm IR 30 m,Dahua,Videovigilancia,pieza,375.00,30
+CAM-005,Cámara domo 4 MP IP PoE interior lente 2.8 mm IR 30 m,Hikvision,Videovigilancia,pieza,1150.00,15
+CAM-006,Cámara bala 4 MP IP PoE exterior lente 2.8 mm IR 30 m,Dahua,Videovigilancia,pieza,1090.00,18
+CAM-007,Cámara bala 2 MP ColorVu visión a color nocturna,Hikvision,Videovigilancia,pieza,690.00,12
+CAM-008,Cámara PTZ 2 MP IP zoom óptico 25x IR 100 m,Hikvision,Videovigilancia,pieza,9850.00,2
+CAM-009,Cámara Wi-Fi 2 MP interior con audio bidireccional,Ezviz,Videovigilancia,pieza,520.00,25
+GRB-001,DVR 4 canales 1080p Lite con salida HDMI,Hikvision,Videovigilancia,pieza,890.00,15
+GRB-002,DVR 8 canales 1080p Lite con salida HDMI,Hikvision,Videovigilancia,pieza,1390.00,12
+GRB-003,DVR 16 canales 1080p Lite con salida HDMI,Hikvision,Videovigilancia,pieza,2650.00,6
+GRB-004,NVR 8 canales IP 4K con 8 puertos PoE,Hikvision,Videovigilancia,pieza,3290.00,5
+GRB-005,XVR 8 canales 1080p Lite pentahíbrido,Dahua,Videovigilancia,pieza,1350.00,8
+DIS-001,Disco duro 1 TB especial para videovigilancia,Western Digital,Almacenamiento,pieza,1050.00,20
+DIS-002,Disco duro 2 TB especial para videovigilancia,Western Digital,Almacenamiento,pieza,1450.00,14
+DIS-003,Disco duro 4 TB especial para videovigilancia,Western Digital,Almacenamiento,pieza,2350.00,6
+DIS-004,Memoria microSD 128 GB clase 10 para cámaras,Hikvision,Almacenamiento,pieza,265.00,30
+CAB-001,Bobina cable UTP Cat5e exterior 305 m,Epcom,Cableado,bobina,2290.00,10
+CAB-002,Bobina cable UTP Cat6 interior 305 m,Epcom,Cableado,bobina,2890.00,8
+CAB-003,Bobina cable siamés RG59 + 2x18 AWG 305 m,Epcom,Cableado,bobina,1890.00,6
+CAB-004,Bobina cable de alarma 4 hilos calibre 22 AWG 305 m,Epcom,Cableado,bobina,1490.00,7
+ACC-001,Par de transceptores de video (balun) HD con conector,Epcom,Accesorios,par,79.00,150
+ACC-002,Fuente de poder 12 V 1 A para cámara,Epcom,Accesorios,pieza,69.00,120
+ACC-003,Fuente de poder centralizada 12 V 10 A 9 salidas,Epcom,Accesorios,pieza,690.00,15
+ACC-004,Caja de conexiones para cámara exterior,Hikvision,Accesorios,pieza,135.00,60
+ACC-005,Conector plug macho 2.1 mm con terminal,Epcom,Accesorios,pieza,9.50,500
+ACC-006,Conector RJ45 Cat6 (bolsa de 100 piezas),Epcom,Accesorios,bolsa,290.00,25
+RED-001,Switch PoE 8 puertos 10/100 + 2 uplink,TP-Link,Redes,pieza,1290.00,10
+RED-002,Router inalámbrico doble banda AC1200,TP-Link,Redes,pieza,690.00,12
+ALA-001,Panel de alarma híbrido 6 a 32 zonas con teclado LCD,DSC,Alarmas,kit,3890.00,6
+ALA-002,Panel de alarma 8 zonas con teclado LED,DSC,Alarmas,kit,2690.00,8
+ALA-003,Comunicador de alarma 4G/Wi-Fi para monitoreo y app,DSC,Alarmas,pieza,2450.00,5
+ALA-004,Sensor de movimiento PIR alámbrico inmune a mascotas,DSC,Alarmas,pieza,215.00,80
+ALA-005,Sensor de movimiento PIR inalámbrico,DSC,Alarmas,pieza,690.00,25
+ALA-006,Contacto magnético de sobreponer para puerta,Epcom,Alarmas,pieza,45.00,200
+ALA-007,Contacto magnético inalámbrico para puerta o ventana,DSC,Alarmas,pieza,520.00,30
+ALA-008,Sirena exterior 30 W con gabinete,Epcom,Alarmas,pieza,390.00,20
+ALA-009,Batería recargable 12 V 7 Ah para panel de alarma,Epcom,Alarmas,pieza,320.00,40
+ALA-010,Detector de humo fotoeléctrico alámbrico,DSC,Alarmas,pieza,480.00,15
+ACC-007,Chapa magnética 600 lb con soporte,Epcom,Control de acceso,pieza,890.00,10
+ACC-008,Lector de huella y tarjeta con teclado para control de acceso,ZKTeco,Control de acceso,pieza,1890.00,6
