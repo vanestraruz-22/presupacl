@@ -107,3 +107,18 @@ def test_quitar_y_descartar(entorno):
 
 def test_cotizacion_inexistente_404(entorno):
     assert entorno["http"].get("/cotizaciones/999").status_code == 404
+
+
+def test_enter_actualiza_sin_quitar_renglon_y_precios_para_calculo_en_vivo(entorno):
+    """Enter en una cantidad usa el botón por defecto «actualizar», no «Quitar» del primer renglón."""
+    http, t = entorno["http"], entorno["token"]
+    http.get("/catalogo?texto=cámara")
+    http.post("/cotizaciones/nueva", data={"_token": t, "id_cliente": entorno["id_cliente"]})
+    http.post("/borrador/agregar", data={"_token": t, "id_concepto": 1, "cantidad": "1"})
+    pagina = html(http.get("/borrador"))
+    assert pagina.index('value="actualizar" tabindex="-1"') < pagina.index('name="quitar"')
+    assert 'data-precio-catalogo="' in pagina and 'id="t-total"' in pagina
+    # Lo que envía el navegador al presionar Enter: accion=actualizar y la cantidad nueva.
+    http.post("/borrador", data={"_token": t, "accion": "actualizar", "cantidad": ["3"], "precio": [""]})
+    pagina = html(http.get("/borrador"))
+    assert pagina.count('class="renglon"') == 1 and 'value="3"' in pagina
