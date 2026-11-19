@@ -55,10 +55,13 @@ Los 21 requerimientos funcionales están implementados y probados. Cada incremen
 | D02 | **Decidido:** MXN, y los precios del catálogo ya incluyen IVA. PresupACL les quita el IVA al leerlos y lo suma una sola vez al total. SUPUESTO: tasa 16 %. |
 | D03 | **Decidido:** por ahora no hay porcentaje mínimo, así que al duplicar se señala cualquier cambio de precio. |
 | D04 | **Decidido:** una cotización aceptada o rechazada no se reabre; solo se duplica. |
-| D05 | **Decidido:** la orden del técnico lleva todos los tipos de concepto menos viáticos. SUPUESTO: el teléfono del técnico se captura al enviar. |
-| D06 | Sincronización cada 24 h con la app abierta y reintento a la hora. |
+| D05 | **Decidido:** la orden del técnico lleva todos los conceptos de la cotización, sin ningún precio. SUPUESTO: el teléfono del técnico se captura al enviar. |
+| D07 | **Decidido:** no se permiten teléfonos repetidos entre clientes. Se comparan solo los dígitos, así que "477 123 4567" y "+52 477-123-4567" cuentan como el mismo. SUPUESTO: límites de textos. |
+| D06 | Sin API: los precios salen del catálogo local en CSV. Se releen cada 24 h con la app abierta, o al importar o presionar "Actualizar precios ahora". |
 | D08 | Folio COT-AAAA-NNNN; filtro de fechas inclusivo. |
 | D09 | Flask, werkzeug (hash pbkdf2) y fpdf2. |
+| D10 | El logo es el de la empresa. SUPUESTO: ACL respalda por su cuenta `data/presupacl.db`, `salidas/` y `proyecto/catalogo/catalogo_local.csv`. |
+| D11 | El equipo decidió no registrar evidencia de RNF-01. |
 | Vigencia | 15 días. |
 
 **Catálogo de productos sin API (T-34, decisión del equipo del 19-nov-2026).** No se usará la API de SYSCOM. Los productos se leen del archivo `proyecto/catalogo/catalogo_local.csv`. Ese archivo trae 42 productos típicos de CCTV, alarmas, cableado y redes, con **precios de referencia** en MXN con IVA incluido (D02). ACL debe revisarlos y actualizarlos con su lista vigente.

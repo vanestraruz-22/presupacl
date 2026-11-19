@@ -22,6 +22,9 @@ class AlmacenamientoSimulado:
         self.llamadas.append((nombre, telefono, direcciones))
         return 101
 
+    def listar_telefonos_clientes(self, conexion):
+        return []  # ningún cliente previo: no hay teléfonos repetidos
+
 
 @pytest.fixture
 def simulado(monkeypatch):

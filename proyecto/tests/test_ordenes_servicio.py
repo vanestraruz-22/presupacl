@@ -27,7 +27,7 @@ def test_CA28_aceptar_genera_orden_sin_precios(bd_config, cliente, conceptos):
     assert orden["cliente_nombre_snapshot"] == "Cliente de prueba"
     assert {t["descripcion"] for t in orden["tareas"]} == {
         "Cámara de prueba", "Concepto manual", "Concepto insumos", "Concepto equipo_seguridad",
-        "Concepto programacion", "Concepto mano_obra", "Concepto dia_festivo"}  # D05: todo menos viáticos
+        "Concepto programacion", "Concepto mano_obra", "Concepto dia_festivo", "Concepto viaticos"}  # D05: todos, sin precio
     sin_cobros = json.dumps(orden, ensure_ascii=False).lower()
     for prohibido in ("precio", "importe", "total", "iva", "utilidad", "centavos\": 8", "$"):
         assert prohibido not in sin_cobros.replace("cantidad_milesimas", "")
@@ -50,12 +50,11 @@ def test_CA29_sin_direccion_no_acepta_ni_genera_orden(bd_config, cliente, concep
     assert ords.obtener(bd_config, id_cot) is None
 
 
-def test_solo_viaticos_no_genera_orden(bd_config, cliente, conceptos):
+def test_D05_solo_viaticos_tambien_genera_orden(bd_config, cliente, conceptos):
     id_cot, _ = cc.crear_cotizacion(bd_config, cliente["id_cliente"], [{"id_concepto": conceptos["viaticos"], "cantidad": "1"}],
                                     cliente["direcciones"][0]["id_direccion"])
-    with pytest.raises(ErrorCotizacion):
-        est.cambiar_estatus(bd_config, id_cot, "aceptada")
-    assert ad.obtener_cotizacion(bd_config, id_cot)["estatus"] == "pendiente"
+    est.cambiar_estatus(bd_config, id_cot, "aceptada")
+    assert [t["descripcion"] for t in ords.obtener(bd_config, id_cot)["tareas"]] == ["Concepto viaticos"]
 
 
 def test_falla_al_guardar_orden_revierte_aceptacion(bd_config, cliente, conceptos):
