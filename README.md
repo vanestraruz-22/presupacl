@@ -29,7 +29,7 @@ Los 21 requerimientos funcionales están implementados y probados. Cada incremen
 | RF-02 | clientes_registro | test_clientes_registro, test_integracion_rf02 | CA-04, CA-38, CA-05, CA-68 |
 | RF-03 | clientes_registro | test_clientes_edicion | CA-07, CA-39, CA-08 |
 | RF-04 | clientes_busqueda | test_clientes_busqueda | CA-09, CA-10, CA-40 |
-| RF-05 | catalogo_syscom, cliente_api_syscom | test_catalogo_syscom | CA-11, CA-41, CA-12 |
+| RF-05 | catalogo_syscom, cliente_api_syscom | test_catalogo_syscom, test_catalogo_local | CA-11, CA-41, CA-12 |
 | RF-06 | conceptos_manuales | test_conceptos_manuales | CA-13, CA-42, CA-43 |
 | RF-07 | cotizaciones_creacion | test_cotizaciones_creacion | CA-14, CA-44, CA-16 |
 | RF-08 | calculadora_cotizacion | test_calculadora_cotizacion | CA-17, CA-45, CA-46 |
@@ -61,7 +61,16 @@ Los 21 requerimientos funcionales están implementados y probados. Cada incremen
 | D09 | Flask, werkzeug (hash pbkdf2) y fpdf2. |
 | Vigencia | 15 días. |
 
-**El cliente real de la API de SYSCOM no se ha probado** porque el equipo no tiene credenciales. Todas las pruebas usan SYSCOM simulado, y la app tiene un modo de demostración con productos ficticios.
+**Catálogo de productos sin API (T-34, decisión del equipo del 19-nov-2026).** No se usará la API de SYSCOM. Los productos se leen del archivo `proyecto/catalogo/catalogo_local.csv`. Ese archivo trae 42 productos típicos de CCTV, alarmas, cableado y redes, con **precios de referencia** en MXN sin IVA. ACL debe revisarlos y actualizarlos con su lista vigente.
+
+Para actualizar el catálogo desde la página **Catálogo**:
+1. Pulse **Descargar catálogo (CSV)**.
+2. Edítelo en Excel.
+3. Súbalo con **Importar catálogo**.
+
+Si una fila tiene un error, no se cambia nada y la página indica qué fila es. Al importar se sincronizan los precios, y las cotizaciones ya guardadas conservan los suyos.
+
+El código de la API sigue disponible si algún día hay credenciales, pero nunca se probó contra la API real.
 
 ## Instalar y probar
 
@@ -79,7 +88,7 @@ python3 -m proyecto.auth.auth admin      # solo la primera vez: pide la contrase
 python3 -m proyecto.main                 # abrir http://127.0.0.1:8000 en Chrome o Edge
 ```
 
-Con productos SYSCOM ficticios (sin API real):
+Con los 6 productos ficticios del modo demostración, en lugar del catálogo local:
 
 ```bash
 PRESUPACL_SYSCOM=demo python3 -m proyecto.main
@@ -89,7 +98,8 @@ Variables de entorno opcionales. Nunca se escriben en el código:
 
 | Variable | Uso |
 |---|---|
-| `SYSCOM_CLIENT_ID`, `SYSCOM_CLIENT_SECRET` | Credenciales de la API de SYSCOM. |
+| `PRESUPACL_CATALOGO` | Ruta de otro CSV de catálogo. Por defecto se usa `proyecto/catalogo/catalogo_local.csv`. |
+| `SYSCOM_CLIENT_ID`, `SYSCOM_CLIENT_SECRET` | Credenciales de la API de SYSCOM. No se usan con el catálogo local. |
 | `PRESUPACL_SECRET_KEY` | Llave de sesiones, para que la sesión no se cierre al reiniciar. |
 | `PRESUPACL_HOST=0.0.0.0` | Abrir la app desde otra computadora de la red local (RNF-06). |
 | `PRESUPACL_PORT` | Puerto, 8000 por defecto. En macOS el 5000 lo ocupa AirPlay. |

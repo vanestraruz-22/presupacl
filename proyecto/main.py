@@ -11,6 +11,7 @@ Variables de entorno (opcionales, nunca en el código):
                           arrancar y las sesiones se cierran al reiniciar.
     PRESUPACL_HOST        127.0.0.1 por defecto; 0.0.0.0 para la red local (RNF-06).
     PRESUPACL_SYSCOM      "demo" usa productos ficticios en lugar de la API.
+    PRESUPACL_CATALOGO    ruta del CSV del catálogo local (sin API; T-34).
     SYSCOM_CLIENT_ID / SYSCOM_CLIENT_SECRET  credenciales de la API de SYSCOM.
     PRESUPACL_PORT        8000 por defecto. No se usa 5000 porque en macOS lo
                           ocupa el Receptor AirPlay y el navegador da error 403.
@@ -123,7 +124,7 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno", carpeta_p
     @login_requerido
     def sincronizar():
         resultado = sincronizador_precios_syscom.sincronizar(bd(), app.config["CLIENTE_SYSCOM"])
-        flash(("Precios de SYSCOM actualizados. " if resultado["resultado"] == "exitosa"
+        flash(("Precios del catálogo actualizados. " if resultado["resultado"] == "exitosa"
                else "La actualización no se completó. ") + resultado["detalle"])
         return redirect(url_for("panel"))
 
@@ -252,14 +253,60 @@ def crear_app(ruta_bd=None, secret_key=None, cliente_syscom="entorno", carpeta_p
     @login_requerido
     def catalogo():
         filtros = {c: request.args.get(c, "") for c in ("texto", "categoria", "marca")}
+        todos = request.args.get("todos") == "1"
         respuesta, error = None, None
-        if any(v.strip() for v in filtros.values()):
+        if todos or any(v.strip() for v in filtros.values()):
             try:
-                respuesta = catalogo_syscom.buscar_productos(bd(), app.config["CLIENTE_SYSCOM"], **filtros)
+                respuesta = catalogo_syscom.buscar_productos(bd(), app.config["CLIENTE_SYSCOM"], todos=todos,
+                                                             **filtros)
             except (catalogo_syscom.ErrorCatalogo, almacenamiento_datos.ErrorAlmacenamiento) as falla:
                 error = str(falla)
         return render_template("catalogo.html", filtros=filtros, respuesta=respuesta, error=error,
-                               borrador=session.get("borrador"))
+                               borrador=session.get("borrador"), catalogo_local=catalogo_local())
+
+    # ---------- T-34 Catálogo local (sin API): descargar y reemplazar el CSV ----------
+    def catalogo_local():
+        cliente = app.config["CLIENTE_SYSCOM"]
+        return cliente if isinstance(cliente, cliente_api_syscom.ClienteCatalogoLocal) else None
+
+    @app.route("/catalogo/archivo")
+    @login_requerido
+    def catalogo_archivo():
+        cliente = catalogo_local()
+        if cliente is None or not os.path.exists(cliente.ruta):
+            abort(404, description="No hay archivo de catálogo local.")
+        return send_file(os.path.abspath(cliente.ruta), mimetype="text/csv", as_attachment=True,
+                         download_name="catalogo_local.csv")
+
+    @app.route("/catalogo/importar", methods=["POST"])
+    @login_requerido
+    def catalogo_importar():
+        cliente = catalogo_local()
+        if cliente is None:
+            abort(404, description="El catálogo local no está activo.")
+        archivo = request.files.get("archivo")
+        if archivo is None or not archivo.filename:
+            flash("Seleccione un archivo CSV para importar.")
+            return redirect(url_for("catalogo"))
+        try:
+            texto = archivo.read().decode("utf-8-sig")
+        except UnicodeDecodeError:
+            try:
+                archivo.seek(0)
+                texto = archivo.read().decode("cp1252")  # CSV guardado por Excel en Windows
+            except UnicodeDecodeError:
+                texto = None
+        if texto is None:
+            flash("No se pudo leer el archivo. Guárdelo desde Excel como «CSV UTF-8».")
+            return redirect(url_for("catalogo"))
+        try:
+            total = cliente.reemplazar_archivo(texto)
+        except cliente_api_syscom.ErrorApiSyscom as error:
+            flash(f"No se importó el catálogo: {error} El catálogo anterior sigue igual.")
+            return redirect(url_for("catalogo"))
+        resultado = sincronizador_precios_syscom.sincronizar(bd(), cliente)
+        flash(f"Catálogo importado con {total} producto(s). " + resultado["detalle"])
+        return redirect(url_for("catalogo", todos=1))
 
     # ---------- RF-07, RF-08, RF-20 Cotización nueva (borrador en la sesión) ----------
     def borrador_actual():

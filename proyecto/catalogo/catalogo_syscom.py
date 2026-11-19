@@ -9,7 +9,7 @@ from proyecto.catalogo import cliente_api_syscom
 from proyecto.infraestructura import almacenamiento_datos
 
 AVISO_SIN_API = (
-    "SYSCOM no está disponible en este momento ({motivo}). Se muestran los últimos datos guardados; "
+    "El catálogo de productos no está disponible en este momento ({motivo}). Se muestran los últimos datos guardados; "
     "también puede agregar conceptos manuales."
 )
 
@@ -18,16 +18,17 @@ class ErrorCatalogo(Exception):
     pass
 
 
-def buscar_productos(conexion, cliente_api, texto="", categoria="", marca=""):
+def buscar_productos(conexion, cliente_api, texto="", categoria="", marca="", todos=False):
     """Regresa {"resultados", "aviso", "fuente"} con fuente "syscom" o "local".
 
     - API disponible: guarda/actualiza los productos y regresa precio y existencia
       vigentes; existencia 0 se muestra como 0 (CA-11, CA-41).
     - API caída, sin configurar o con límite: datos locales previos + aviso (CA-12).
+    - todos=True lista el catálogo completo sin filtros (útil con el catálogo local, T-34).
     Los productos con datos inválidos se omiten y se avisa cuántos fueron.
     """
     texto, categoria, marca = (v.strip() if v else "" for v in (texto, categoria, marca))
-    if not (texto or categoria or marca):
+    if not (texto or categoria or marca or todos):
         raise ErrorCatalogo("Escriba una palabra clave, categoría o marca para buscar.")
 
     if cliente_api is None:
@@ -49,9 +50,9 @@ def buscar_productos(conexion, cliente_api, texto="", categoria="", marca=""):
     resultados.sort(key=lambda c: c["descripcion"])
     aviso = None
     if omitidos:
-        aviso = f"Se omitieron {omitidos} producto(s) de SYSCOM con datos incompletos."
+        aviso = f"Se omitieron {omitidos} producto(s) con datos incompletos."
     elif not resultados:
-        aviso = "No hay productos de SYSCOM que coincidan con la búsqueda."
+        aviso = "No hay productos que coincidan con la búsqueda."
     return {"resultados": resultados, "aviso": aviso, "fuente": "syscom"}
 
 
