@@ -4,9 +4,8 @@ La orden lleva cliente, dirección elegida y conceptos de instalación, SIN
 precios, utilidad, IVA ni total. Se crea junto con el cambio a "aceptada" en
 una sola transacción; si falta la dirección no se acepta ni se crea nada.
 
-SUPUESTO D05 — validar con Sofía Quesada y ACL: son de instalación los tipos
-SYSCOM, manual, insumos, equipo de seguridad, programación y mano de obra; no
-lo son viáticos ni el cargo por domingo o día festivo.
+D05 (decidido por el equipo el 19-nov-2026): la orden del técnico lleva todos
+los tipos de concepto menos viáticos (el cargo por domingo o día festivo sí va).
 """
 
 import json
@@ -16,7 +15,8 @@ from proyecto.cotizaciones.calculadora_cotizacion import formato_cantidad
 from proyecto.cotizaciones.validador_cotizacion import ErrorCotizacion
 from proyecto.infraestructura import almacenamiento_datos
 
-TIPOS_INSTALACION = ("SYSCOM", "manual", "insumos", "equipo_seguridad", "programacion", "mano_obra")
+TIPOS_INSTALACION = ("SYSCOM", "manual", "insumos", "equipo_seguridad", "programacion", "mano_obra",
+                     "dia_festivo")
 
 
 def preparar_orden(cotizacion):

@@ -1,8 +1,8 @@
 """cotizaciones_estado: cambio de estatus y bloqueo de cotizaciones cerradas (RF-13, RF-15).
 
 Estatus permitidos: pendiente, aceptada y rechazada.
-SUPUESTO D04 — validar con ACL: solo una cotización pendiente cambia de
-estatus; una aceptada o rechazada no se reabre (para cambiarla se duplica).
+D04 (decidido por el equipo el 19-nov-2026): solo una cotización pendiente
+cambia de estatus; una aceptada o rechazada no se reabre, solo se duplica.
 """
 
 from proyecto.cotizaciones.validador_cotizacion import ErrorCotizacion

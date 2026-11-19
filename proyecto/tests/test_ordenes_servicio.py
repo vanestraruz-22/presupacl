@@ -27,7 +27,7 @@ def test_CA28_aceptar_genera_orden_sin_precios(bd_config, cliente, conceptos):
     assert orden["cliente_nombre_snapshot"] == "Cliente de prueba"
     assert {t["descripcion"] for t in orden["tareas"]} == {
         "Cámara de prueba", "Concepto manual", "Concepto insumos", "Concepto equipo_seguridad",
-        "Concepto programacion", "Concepto mano_obra"}
+        "Concepto programacion", "Concepto mano_obra", "Concepto dia_festivo"}  # D05: todo menos viáticos
     sin_cobros = json.dumps(orden, ensure_ascii=False).lower()
     for prohibido in ("precio", "importe", "total", "iva", "utilidad", "centavos\": 8", "$"):
         assert prohibido not in sin_cobros.replace("cantidad_milesimas", "")

@@ -47,21 +47,21 @@ Los 21 requerimientos funcionales están implementados y probados. Cada incremen
 | RF-20 | validador_cotizacion | test_cotizaciones_creacion, test_cotizaciones_edicion | CA-62, CA-63, CA-15 |
 | RF-21 | config/settings, generador_pdf_cotizacion | test_settings, test_generador_pdf_cotizacion | CA-36, CA-64, CA-65 |
 
-### SUPUESTOS por validar con ACL o con el equipo (marcados en el código)
+### Decisiones del equipo (19-nov-2026) y SUPUESTOS que siguen abiertos
 
-| Decisión | Supuesto usado |
+| Decisión | Estado |
 |---|---|
-| D01 | Utilidad como recargo sobre el subtotal (se puede cambiar a margen en Configuración); IVA sobre subtotal + utilidad; redondeo al centavo, mitad hacia arriba. |
-| D02 | Moneda MXN. |
-| D03 | Cambio de precio "significativo" al duplicar: más del 10 %. |
-| D04 | Una cotización aceptada o rechazada no se reabre. |
-| D05 | Son de instalación todos los tipos menos viáticos y día festivo. El teléfono del técnico se captura al enviar. |
+| D01 | **Decidido:** la utilidad es margen sobre el precio de venta (método por defecto "margen"). SUPUESTO: IVA sobre subtotal + utilidad; redondeo al centavo, mitad hacia arriba. |
+| D02 | **Decidido:** MXN, y los precios del catálogo ya incluyen IVA. PresupACL les quita el IVA al leerlos y lo suma una sola vez al total. SUPUESTO: tasa 16 %. |
+| D03 | **Decidido:** por ahora no hay porcentaje mínimo, así que al duplicar se señala cualquier cambio de precio. |
+| D04 | **Decidido:** una cotización aceptada o rechazada no se reabre; solo se duplica. |
+| D05 | **Decidido:** la orden del técnico lleva todos los tipos de concepto menos viáticos. SUPUESTO: el teléfono del técnico se captura al enviar. |
 | D06 | Sincronización cada 24 h con la app abierta y reintento a la hora. |
 | D08 | Folio COT-AAAA-NNNN; filtro de fechas inclusivo. |
 | D09 | Flask, werkzeug (hash pbkdf2) y fpdf2. |
 | Vigencia | 15 días. |
 
-**Catálogo de productos sin API (T-34, decisión del equipo del 19-nov-2026).** No se usará la API de SYSCOM. Los productos se leen del archivo `proyecto/catalogo/catalogo_local.csv`. Ese archivo trae 42 productos típicos de CCTV, alarmas, cableado y redes, con **precios de referencia** en MXN sin IVA. ACL debe revisarlos y actualizarlos con su lista vigente.
+**Catálogo de productos sin API (T-34, decisión del equipo del 19-nov-2026).** No se usará la API de SYSCOM. Los productos se leen del archivo `proyecto/catalogo/catalogo_local.csv`. Ese archivo trae 42 productos típicos de CCTV, alarmas, cableado y redes, con **precios de referencia** en MXN con IVA incluido (D02). ACL debe revisarlos y actualizarlos con su lista vigente.
 
 Para actualizar el catálogo desde la página **Catálogo**:
 1. Pulse **Descargar catálogo (CSV)**.

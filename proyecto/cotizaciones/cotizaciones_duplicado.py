@@ -4,9 +4,10 @@ Copia conceptos y cantidades, pero toma el precio VIGENTE del catálogo (no el
 de la original) y deja la original intacta. Permite cambiar cliente y dirección
 (CA-57). Señala los conceptos que conviene revisar (CA-67).
 
-SUPUESTO D03 — validar con ACL: un cambio de precio "significativo" es de más
-del 10 % (hacia arriba o hacia abajo); un producto SYSCOM con existencia 0 se
-señala como agotado.
+D03 (equipo, 19-nov-2026): por ahora no hay un porcentaje mínimo, así que se
+señala CUALQUIER cambio de precio respecto a la original. Si ACL define uno,
+basta con cambiar UMBRAL_CAMBIO (por ejemplo Decimal("0.10") = más del 10 %).
+Un producto del catálogo con existencia 0 se señala como agotado.
 """
 
 from decimal import Decimal
@@ -15,7 +16,7 @@ from proyecto.cotizaciones import cotizaciones_creacion
 from proyecto.cotizaciones.validador_cotizacion import ErrorCotizacion
 from proyecto.infraestructura import almacenamiento_datos
 
-UMBRAL_CAMBIO = Decimal("0.10")
+UMBRAL_CAMBIO = Decimal("0")  # D03: cualquier cambio
 
 
 def duplicar(conexion, id_origen, id_cliente=None, id_direccion=None):

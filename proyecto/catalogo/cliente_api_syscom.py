@@ -27,7 +27,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 URL_BASE = "https://developers.syscom.mx"
 MONEDA = "MXN"  # SUPUESTO D02
@@ -199,6 +199,21 @@ PRODUCTOS_DEMO = [
 RUTA_CATALOGO_LOCAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogo_local.csv")
 COLUMNAS_CSV = ["clave", "descripcion", "marca", "categoria", "unidad", "precio", "existencia"]
 MAX_PRODUCTOS_CSV = 20_000
+# D02 (equipo, 19-nov-2026): se cotiza en MXN y los precios del catálogo YA
+# incluyen IVA. Al leerlos se les quita el IVA para que la cotización no lo
+# cobre dos veces (el IVA se suma una sola vez al final). SUPUESTO: tasa 16 %.
+IVA_INCLUIDO_TASA = Decimal("0.16")
+
+
+def quitar_iva(precio_texto):
+    """'1160.00' (con IVA) -> '1000.00' (sin IVA), redondeo al centavo. Texto inválido se regresa igual."""
+    try:
+        precio = Decimal(str(precio_texto).replace(",", ""))
+    except (InvalidOperation, ValueError):
+        return precio_texto
+    if not precio.is_finite() or precio < 0 or abs(precio) >= Decimal("1e15"):
+        return precio_texto
+    return str((precio / (1 + IVA_INCLUIDO_TASA)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
 def leer_csv_catalogo(texto):
@@ -238,6 +253,8 @@ def leer_csv_catalogo(texto):
                                  "respuesta_invalida")
         claves.add(producto["syscom_id"])
         crudo["producto_id"] = producto["syscom_id"]
+        crudo["precio_con_iva"] = crudo["precio"]
+        crudo["precio"] = quitar_iva(crudo["precio"])
         productos.append(crudo)
         if len(productos) > MAX_PRODUCTOS_CSV:
             raise ErrorApiSyscom(f"El archivo tiene más de {MAX_PRODUCTOS_CSV} productos.", "respuesta_invalida")

@@ -26,7 +26,7 @@
     <option value="recargo" {% if config.metodo_utilidad == 'recargo' %}selected{% endif %}>Recargo sobre el subtotal</option>
     <option value="margen" {% if config.metodo_utilidad == 'margen' %}selected{% endif %}>Margen sobre el precio de venta</option>
   </select>
-  <p class="nota">SUPUESTO — validar con ACL: IVA 0.16, utilidad 0.20 como recargo, vigencia 15 días.</p>
+  <p class="nota">Decidido por el equipo (D01): la utilidad es margen sobre el precio de venta. SUPUESTO — validar con ACL: IVA 0.16, utilidad 0.20, vigencia 15 días.</p>
   <button class="primario" type="submit">Guardar configuración</button>
 </form>
 {% endblock %}
